@@ -60,44 +60,61 @@ function isEmailLike(value: string): boolean {
 /**
  * Provision the signed-in user as an examiner (idempotent).
  *
- * Name resolution priority: users.name when it holds a real name — Convex
- * Auth copies the OTP email identifier into users.name, which must never be
- * shown as a display name — else the email local-part as a last resort. The
- * typed signup name lands moments later via setExaminerName, which also
- * self-corrects this row if ensureExaminer created it first.
+ * Name resolution priority:
+ *   1. `pendingName` — the name typed into the signup form (stashed by /auth
+ *      and passed by the portal). Applied UNCONDITIONALLY, even over an
+ *      existing row, so examiner rows created with the email fallback before
+ *      this fix heal themselves on the next portal visit.
+ *   2. users.name — but ONLY when it isn't email-like (Convex Auth copies
+ *      the OTP email identifier into users.name; that must never be shown).
+ *   3. email local-part — last resort when no name was ever provided.
  *
  * Returns `{ examinerId, isNew }`; new rows always start with welcomed:
  * false so the portal can greet first-time users differently.
  */
 export const ensureExaminer = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { pendingName: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Not authenticated");
     const user = await ctx.db.get(userId);
     const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
+    const pendingName = args.pendingName?.trim();
 
     const existing = await ctx.db
       .query("examiners")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (existing) {
-      // Self-heal examiners whose name was previously the email fallback
-      // (or an email-like value) once a real name is available.
-      const realName =
-        user?.name && !isEmailLike(user.name) ? user.name : undefined;
-      if (
-        realName &&
-        realName !== existing.name &&
-        (isEmailLike(existing.name) || existing.name === email.split("@")[0])
-      ) {
-        await ctx.db.patch(existing._id, { name: realName });
+      if (pendingName) {
+        // The typed name is the source of truth — always win.
+        if (existing.name !== pendingName) {
+          await ctx.db.patch(existing._id, { name: pendingName });
+        }
+        if (user && isEmailLike(user.name ?? "") && user.name !== pendingName) {
+          await ctx.db.patch(user._id, { name: pendingName });
+        }
+      } else {
+        // Self-heal examiners whose name was previously the email fallback
+        // (or an email-like value) once a real name is available.
+        const realName =
+          user?.name && !isEmailLike(user.name) ? user.name : undefined;
+        if (
+          realName &&
+          realName !== existing.name &&
+          (isEmailLike(existing.name) || existing.name === email.split("@")[0])
+        ) {
+          await ctx.db.patch(existing._id, { name: realName });
+        }
       }
       return { examinerId: existing._id, isNew: false };
     }
 
     const name =
-      user?.name && !isEmailLike(user.name) ? user.name : email.split("@")[0];
+      pendingName ??
+      (user?.name && !isEmailLike(user.name)
+        ? user.name
+        : email.split("@")[0]);
     const examinerId = await ctx.db.insert("examiners", {
       userId,
       name,
@@ -140,6 +157,7 @@ export const setExaminerName = mutation({
         name,
         email,
         createdAt: Date.now(),
+        welcomed: false,
       });
     }
     return { ok: true };

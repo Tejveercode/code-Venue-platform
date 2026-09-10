@@ -89,8 +89,9 @@ export default function ExaminerPortal() {
   const ensureInFlight = useRef(false);
 
   // The typed signup name stashed by /auth (covers the race where the
-  // examiner row is created before setExaminerName lands). Read once per
-  // mount so one signup is never counted as two visits.
+  // examiner row is created before setExaminerName lands, and heals rows
+  // that were created with the email fallback). Read once per mount so one
+  // signup is never counted as two visits.
   const pendingName = useMemo(() => {
     try {
       return sessionStorage.getItem(PENDING_NAME_KEY) ?? undefined;
@@ -99,9 +100,21 @@ export default function ExaminerPortal() {
     }
   }, []);
 
-  // First-ever visit ⇒ new-user greeting. Backend-computed (welcomed flag on
-  // the examiner row) so it survives tab-closes and is race-free.
-  const isNewUser = examiner !== undefined && examiner !== null && examiner.welcomed === false;
+  // First-ever visit ⇒ new-user greeting. The `welcomed` flag on the
+  // examiner row is backend-computed so it survives tab-closes and reloads;
+  // greetedAsNew latches the decision for the whole session so the
+  // markExaminerWelcomed write (below) can't swap the heading mid-visit.
+  const [greetedAsNew, setGreetedAsNew] = useState(false);
+
+  useEffect(() => {
+    if (
+      examiner !== undefined &&
+      examiner !== null &&
+      examiner.welcomed === false
+    ) {
+      setGreetedAsNew(true);
+    }
+  }, [examiner]);
 
   // Form + modal state
   const [formOpen, setFormOpen] = useState(false);
@@ -132,7 +145,7 @@ export default function ExaminerPortal() {
     if (examiner === null && !examinerEnsured && !ensureInFlight.current) {
       ensureInFlight.current = true;
       setExaminerEnsured(true);
-      void ensureExaminer({})
+      void ensureExaminer({ pendingName })
         .then(() => {
           if (pendingName) {
             // The row exists now — clear the stash so this name is only ever
@@ -154,13 +167,21 @@ export default function ExaminerPortal() {
     }
   }, [examiner, examinerEnsured, ensureExaminer, pendingName]);
 
-  // The new-user greeting has now been displayed — flag it server-side so
-  // every future visit greets with "Welcome back" instead.
+  // The new-user greeting has now been displayed — flag it server-side after
+  // a short delay so the examiner actually sees the first-visit greeting;
+  // every future visit then greets with "Welcome back" instead.
   useEffect(() => {
-    if (examiner !== undefined && examiner !== null && examiner.welcomed === false) {
-      void markWelcomed({}).catch(() => {
-        // Non-fatal: the greeting just shows again next visit.
-      });
+    if (
+      examiner !== undefined &&
+      examiner !== null &&
+      examiner.welcomed === false
+    ) {
+      const t = setTimeout(() => {
+        void markWelcomed({}).catch(() => {
+          // Non-fatal: the greeting just shows again next visit.
+        });
+      }, 4000);
+      return () => clearTimeout(t);
     }
   }, [examiner, markWelcomed]);
 
@@ -280,7 +301,16 @@ export default function ExaminerPortal() {
     });
   };
 
-  const displayName = examiner?.name ?? user?.name ?? "examiner";
+  // examiner === null means the ensure hasn't completed yet — that only
+  // happens for a brand-new user (returning users always have a row), so
+  // show the new-user greeting with the typed name while it runs.
+  const isNewUser =
+    examiner === null || greetedAsNew || examiner?.welcomed === false;
+  const displayName =
+    examiner?.name ??
+    (examiner === null && pendingName
+      ? pendingName
+      : (user?.name ?? "examiner"));
 
   const greeting = isNewUser
     ? `Welcome, ${displayName}!`
