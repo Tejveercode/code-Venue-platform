@@ -18,6 +18,13 @@ function resolveRedirectAfterAuth(
 
 type Mode = "signin" | "signup";
 
+/**
+ * sessionStorage key holding the typed signup name until the portal consumes
+ * it — covers the race where the examiner record is created before
+ * setExaminerName can run after the OTP step.
+ */
+export const PENDING_NAME_KEY = "cv_pending_examiner_name";
+
 function AuthCard() {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
@@ -32,21 +39,36 @@ function AuthCard() {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    // `verifying` guards the window between the email step confirming and the
+    // OTP submit finishing — without it the effect would yank the user to the
+    // portal the instant the code step mounts (the account exists by then).
+    if (!authLoading && !verifying && isAuthenticated) {
       navigate(redirect, { replace: true });
     }
-  }, [authLoading, isAuthenticated, navigate, redirect]);
+  }, [authLoading, verifying, isAuthenticated, navigate, redirect]);
 
   const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    // Stash the typed name before the account exists: ensureExaminer in the
+    // portal reads it if the account is created before setExaminerName runs,
+    // so the typed name — never the email prefix — becomes the display name.
+    if (mode === "signup" && name.trim()) {
+      try {
+        sessionStorage.setItem(PENDING_NAME_KEY, name.trim());
+      } catch {
+        // storage unavailable — setExaminerName after the OTP still covers it
+      }
+    }
     try {
       const formData = new FormData();
       formData.set("email", email);
       await signIn("email-otp", formData);
+      setVerifying(true);
       setStep("code");
     } catch (err) {
       setError(
@@ -72,18 +94,26 @@ function AuthCard() {
       }
       await signIn("email-otp", formData);
 
+      setVerifying(false);
+
       // Persist the typed name onto the examiner record right after the
       // account exists — this is the name the portal greets the examiner with.
       if (mode === "signup" && name.trim()) {
         try {
           await setExaminerName({ name: name.trim() });
+          try {
+            sessionStorage.removeItem(PENDING_NAME_KEY);
+          } catch {
+            // ignore storage failures
+          }
         } catch {
-          // ensureExaminer will fall back to the email prefix if this races.
+          // The portal consumes the stashed name as a fallback and retries.
         }
       }
 
       navigate(redirect, { replace: true });
     } catch {
+      setVerifying(false);
       setError("The verification code you entered is incorrect.");
       setOtp("");
     } finally {

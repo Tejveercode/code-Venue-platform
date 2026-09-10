@@ -60,26 +60,22 @@ function isEmailLike(value: string): boolean {
 /**
  * Provision the signed-in user as an examiner (idempotent).
  *
- * Name resolution, in priority order:
- *   1. `pendingName` — the name typed into the signup form, passed here by
- *      the portal right after sign-in (guarantees the typed name wins even
- *      if the setExaminerName call races with this mutation).
- *   2. users.name — but ONLY if it isn't the auth email (Convex Auth copies
- *      the OTP identifier into users.name, which is what produced greets like
- *      "tejveersinghmalwa23").
- *   3. email local-part — last resort when no name was ever provided.
+ * Name resolution priority: users.name when it holds a real name — Convex
+ * Auth copies the OTP email identifier into users.name, which must never be
+ * shown as a display name — else the email local-part as a last resort. The
+ * typed signup name lands moments later via setExaminerName, which also
+ * self-corrects this row if ensureExaminer created it first.
  *
- * Returns `{ examinerId, isNew }` so the portal can greet first-time users
- * differently from returning ones.
+ * Returns `{ examinerId, isNew }`; new rows always start with welcomed:
+ * false so the portal can greet first-time users differently.
  */
 export const ensureExaminer = mutation({
-  args: { pendingName: v.optional(v.string()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Not authenticated");
     const user = await ctx.db.get(userId);
     const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
-    const pendingName = args.pendingName?.trim();
 
     const existing = await ctx.db
       .query("examiners")
@@ -88,39 +84,27 @@ export const ensureExaminer = mutation({
     if (existing) {
       // Self-heal examiners whose name was previously the email fallback
       // (or an email-like value) once a real name is available.
-      const healedName =
-        pendingName ??
-        (user?.name && !isEmailLike(user.name) ? user.name : undefined);
+      const realName =
+        user?.name && !isEmailLike(user.name) ? user.name : undefined;
       if (
-        healedName &&
-        healedName !== existing.name &&
+        realName &&
+        realName !== existing.name &&
         (isEmailLike(existing.name) || existing.name === email.split("@")[0])
       ) {
-        await ctx.db.patch(existing._id, { name: healedName });
-        if (user && user.name !== healedName) {
-          await ctx.db.patch(user._id, { name: healedName });
-        }
+        await ctx.db.patch(existing._id, { name: realName });
       }
       return { examinerId: existing._id, isNew: false };
     }
 
     const name =
-      pendingName ??
-      (user?.name && !isEmailLike(user.name)
-        ? user.name
-        : email.split("@")[0]);
-
+      user?.name && !isEmailLike(user.name) ? user.name : email.split("@")[0];
     const examinerId = await ctx.db.insert("examiners", {
       userId,
       name,
       email,
       createdAt: Date.now(),
+      welcomed: false,
     });
-    // Backfill users.name too, so every other surface that reads the user
-    // record (header, etc.) shows the same display name.
-    if (user && user.name !== name) {
-      await ctx.db.patch(user._id, { name });
-    }
     return { examinerId, isNew: true };
   },
 });
@@ -158,6 +142,17 @@ export const setExaminerName = mutation({
         createdAt: Date.now(),
       });
     }
+    return { ok: true };
+  },
+});
+
+/** Mark that the examiner has seen their first-visit welcome greeting. */
+export const markExaminerWelcomed = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const examiner = await getCurrentExaminer(ctx);
+    if (!examiner || examiner.welcomed === true) return { ok: true };
+    await ctx.db.patch(examiner._id, { welcomed: true });
     return { ok: true };
   },
 });

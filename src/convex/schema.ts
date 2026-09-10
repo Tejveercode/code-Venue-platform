@@ -40,6 +40,9 @@ const schema = defineSchema(
       name: v.string(),
       email: v.string(),
       createdAt: v.number(),
+      // False/absent until the examiner has seen their first-visit welcome
+      // greeting in the portal (drives "Welcome" vs "Welcome back").
+      welcomed: v.optional(v.boolean()),
     })
       .index("by_user", ["userId"])
       .index("by_email", ["email"]),

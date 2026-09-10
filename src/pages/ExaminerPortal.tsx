@@ -21,9 +21,10 @@ import {
   Plus,
   Square,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router";
+import { PENDING_NAME_KEY } from "@/pages/Auth";
 
 type Room = Doc<"rooms">;
 type Counts = Record<string, { joined: number; submitted: number }>;
@@ -77,11 +78,30 @@ export default function ExaminerPortal() {
   ) as Counts | undefined;
 
   const ensureExaminer = useMutation(api.exams.ensureExaminer);
+  const markWelcomed = useMutation(api.exams.markExaminerWelcomed);
   const createRoom = useMutation(api.exams.createRoom);
   const updateRoom = useMutation(api.exams.updateRoom);
   const endRoomMutation = useMutation(api.exams.endRoom);
 
+  // `examiner === null` means "authed user with no examiner row yet" — a
+  // first-ever visit. `undefined` means the query is still loading.
   const [examinerEnsured, setExaminerEnsured] = useState(false);
+  const ensureInFlight = useRef(false);
+
+  // The typed signup name stashed by /auth (covers the race where the
+  // examiner row is created before setExaminerName lands). Read once per
+  // mount so one signup is never counted as two visits.
+  const pendingName = useMemo(() => {
+    try {
+      return sessionStorage.getItem(PENDING_NAME_KEY) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  // First-ever visit ⇒ new-user greeting. Backend-computed (welcomed flag on
+  // the examiner row) so it survives tab-closes and is race-free.
+  const isNewUser = examiner !== undefined && examiner !== null && examiner.welcomed === false;
 
   // Form + modal state
   const [formOpen, setFormOpen] = useState(false);
@@ -109,11 +129,40 @@ export default function ExaminerPortal() {
   }, []);
 
   useEffect(() => {
-    if (examiner === null && !examinerEnsured) {
+    if (examiner === null && !examinerEnsured && !ensureInFlight.current) {
+      ensureInFlight.current = true;
       setExaminerEnsured(true);
-      void ensureExaminer();
+      void ensureExaminer({})
+        .then(() => {
+          if (pendingName) {
+            // The row exists now — clear the stash so this name is only ever
+            // consumed once (a later tab-open is a *return* visit).
+            try {
+              sessionStorage.removeItem(PENDING_NAME_KEY);
+            } catch {
+              // ignore storage failures
+            }
+          }
+        })
+        .catch(() => {
+          // Allow a retry on the next render where examiner is still null.
+          setExaminerEnsured(false);
+        })
+        .finally(() => {
+          ensureInFlight.current = false;
+        });
     }
-  }, [examiner, examinerEnsured, ensureExaminer]);
+  }, [examiner, examinerEnsured, ensureExaminer, pendingName]);
+
+  // The new-user greeting has now been displayed — flag it server-side so
+  // every future visit greets with "Welcome back" instead.
+  useEffect(() => {
+    if (examiner !== undefined && examiner !== null && examiner.welcomed === false) {
+      void markWelcomed({}).catch(() => {
+        // Non-fatal: the greeting just shows again next visit.
+      });
+    }
+  }, [examiner, markWelcomed]);
 
   const filteredRooms = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -233,6 +282,13 @@ export default function ExaminerPortal() {
 
   const displayName = examiner?.name ?? user?.name ?? "examiner";
 
+  const greeting = isNewUser
+    ? `Welcome, ${displayName}!`
+    : `Welcome back, ${displayName}`;
+  const greetingSub = isNewUser
+    ? "You're all set — let's create your first room."
+    : "Here's the state of your exam rooms right now.";
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -258,8 +314,8 @@ export default function ExaminerPortal() {
         <main className="cv-page-wrap">
           <div className="cv-page-head">
             <div>
-              <h1>Welcome back, {displayName}</h1>
-              <p className="cv-sub">Here's the state of your exam rooms right now.</p>
+              <h1>{greeting}</h1>
+              <p className="cv-sub">{greetingSub}</p>
             </div>
             <button className="cv-btn cv-btn-primary" onClick={() => openForm()}>
               <Plus size={16} /> Create New Room
