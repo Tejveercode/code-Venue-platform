@@ -247,6 +247,20 @@ export const joinRoom = mutation({
       };
     }
 
+    // Capacity: enforce the room's enrolled limit server-side. Rejoining
+    // students (same clientId → same row) never count against it.
+    if (!args.existingClientId) {
+      const joined = await ctx.db
+        .query("students")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+      if (joined.length >= room.enrolledLimit) {
+        return {
+          error: `"${room.name}" is full (${room.enrolledLimit} enrolled). Ask your examiner for help.`,
+        };
+      }
+    }
+
     // Rejoin with the same clientId → same student row (refresh-safe).
     // A clientId only maps to one student row, so joining a different room
     // always mints a fresh one.

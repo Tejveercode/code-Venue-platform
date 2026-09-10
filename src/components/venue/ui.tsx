@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ChevronDown, X } from "lucide-react";
 import { PixelCanvas } from "./PixelCanvas";
+import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
 // Page shell: warm cream bg + pixel canvas ambient animation
@@ -20,6 +21,22 @@ export function CodeVenuePage({ children }: { children: ReactNode }) {
 // Header — fully transparent so the pixel canvas shows through
 // ---------------------------------------------------------------------------
 
+/** Auth-aware header actions: examiner sign-in CTA when signed out,
+ *  portal link when signed in. Students never need an account. */
+function AuthAwareActions() {
+  const { isLoading, isAuthenticated } = useAuth();
+  if (isLoading) return <span style={{ width: 76 }} />;
+  return isAuthenticated ? (
+    <Link className="cv-btn cv-btn-secondary cv-btn-sm" to="/examiner-portal">
+      Examiner Portal
+    </Link>
+  ) : (
+    <Link className="cv-btn cv-btn-primary cv-btn-sm" to="/auth?returnTo=%2Fexaminer-portal">
+      Examiner Sign In
+    </Link>
+  );
+}
+
 export function VenueHeader({ actions }: { actions?: ReactNode }) {
   return (
     <header className="cv-header">
@@ -37,6 +54,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
           <Link className="cv-nav-link" to="/student-portal">
             Student
           </Link>
+          <AuthAwareActions />
           {actions}
         </nav>
       </div>
