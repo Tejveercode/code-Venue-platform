@@ -48,30 +48,88 @@ async function requireExaminer(ctx: MutationCtx) {
 // Examiners
 // ---------------------------------------------------------------------------
 
-/** Provision the signed-in user as an examiner (idempotent). */
+/**
+ * Looks like an email address (e.g. the raw identifier Convex Auth may copy
+ * into users.name for OTP accounts). Such a value must never be shown to the
+ * examiner as their name.
+ */
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/**
+ * Provision the signed-in user as an examiner (idempotent).
+ *
+ * Name resolution, in priority order:
+ *   1. `pendingName` — the name typed into the signup form, passed here by
+ *      the portal right after sign-in (guarantees the typed name wins even
+ *      if the setExaminerName call races with this mutation).
+ *   2. users.name — but ONLY if it isn't the auth email (Convex Auth copies
+ *      the OTP identifier into users.name, which is what produced greets like
+ *      "tejveersinghmalwa23").
+ *   3. email local-part — last resort when no name was ever provided.
+ *
+ * Returns `{ examinerId, isNew }` so the portal can greet first-time users
+ * differently from returning ones.
+ */
 export const ensureExaminer = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { pendingName: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Not authenticated");
     const user = await ctx.db.get(userId);
+    const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
+    const pendingName = args.pendingName?.trim();
+
     const existing = await ctx.db
       .query("examiners")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
-    if (existing) return existing._id;
+    if (existing) {
+      // Self-heal examiners whose name was previously the email fallback
+      // (or an email-like value) once a real name is available.
+      const healedName =
+        pendingName ??
+        (user?.name && !isEmailLike(user.name) ? user.name : undefined);
+      if (
+        healedName &&
+        healedName !== existing.name &&
+        (isEmailLike(existing.name) || existing.name === email.split("@")[0])
+      ) {
+        await ctx.db.patch(existing._id, { name: healedName });
+        if (user && user.name !== healedName) {
+          await ctx.db.patch(user._id, { name: healedName });
+        }
+      }
+      return { examinerId: existing._id, isNew: false };
+    }
 
-    const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
-    return await ctx.db.insert("examiners", {
+    const name =
+      pendingName ??
+      (user?.name && !isEmailLike(user.name)
+        ? user.name
+        : email.split("@")[0]);
+
+    const examinerId = await ctx.db.insert("examiners", {
       userId,
-      name: user?.name ?? email.split("@")[0],
+      name,
       email,
       createdAt: Date.now(),
     });
+    // Backfill users.name too, so every other surface that reads the user
+    // record (header, etc.) shows the same display name.
+    if (user && user.name !== name) {
+      await ctx.db.patch(user._id, { name });
+    }
+    return { examinerId, isNew: true };
   },
 });
 
-/** Store the examiner's display name on signup (updates user + examiner rows). */
+/**
+ * Store the examiner's typed display name (called right after signup).
+ * Creates the examiner record if it doesn't exist yet, so the name survives
+ * even when this mutation races with ensureExaminer.
+ */
 export const setExaminerName = mutation({
   args: { name: v.string() },
   handler: async (ctx, args) => {
@@ -85,15 +143,21 @@ export const setExaminerName = mutation({
       await ctx.db.patch(user._id, { name });
     }
 
-    // Keep the examiner row in sync so the portal always shows this name.
+    const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
     const examiner = await ctx.db
       .query("examiners")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (examiner) {
       await ctx.db.patch(examiner._id, { name });
+    } else {
+      await ctx.db.insert("examiners", {
+        userId,
+        name,
+        email,
+        createdAt: Date.now(),
+      });
     }
-
     return { ok: true };
   },
 });
