@@ -1,26 +1,42 @@
-import { motion } from "framer-motion";
+import { Link } from "react-router";
 
 export default function NotFound() {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen flex flex-col"
+    <div
+      className="min-h-screen flex flex-col items-center justify-center"
+      style={{ background: "#f7f3ec", fontFamily: "Poppins, system-ui, sans-serif" }}
     >
-
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="max-w-5xl mx-auto relative px-4">
-          <div className="flex items-center justify-center min-h-[200px]">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-              <p className="text-lg text-gray-600">Page Not Found</p>
-            </div>
-          </div>
-        </div>
+      <div className="text-center px-6">
+        <h1
+          className="font-extrabold"
+          style={{
+            fontSize: "clamp(48px, 10vw, 96px)",
+            color: "#2c2420",
+            letterSpacing: "-0.03em",
+            lineHeight: 1,
+            margin: 0,
+          }}
+        >
+          4<span style={{ color: "#b5734a" }}>0</span>4
+        </h1>
+        <p style={{ color: "#6b5d52", margin: "14px 0 26px", fontSize: 16 }}>
+          That page isn't part of the venue.
+        </p>
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center"
+          style={{
+            background: "#b5734a",
+            color: "#fff",
+            padding: "11px 22px",
+            borderRadius: 12,
+            fontWeight: 600,
+            fontSize: 14,
+          }}
+        >
+          Back to Code Venue
+        </Link>
       </div>
-    </motion.div>
+    </div>
   );
 }

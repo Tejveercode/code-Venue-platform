@@ -32,12 +32,54 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
     }).index("email", ["email"]), // index for the email. do not remove or modify
 
-    // add other tables here
+    // ---- Code Venue ----
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    // An examiner identity tied to a signed-in auth user (one per user).
+    examiners: defineTable({
+      userId: v.id("users"),
+      name: v.string(),
+      email: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_email", ["email"]),
+
+    // A live coding exam room. status mirrors RoomStatus: LIVE | CLOSED.
+    rooms: defineTable({
+      code: v.string(), // "CV-####", unique
+      name: v.string(),
+      prompt: v.string(),
+      durationMinutes: v.number(),
+      status: v.union(v.literal("LIVE"), v.literal("CLOSED")),
+      enrolledLimit: v.number(),
+      startedAt: v.number(),
+      endedAt: v.optional(v.number()),
+      examinerId: v.id("examiners"),
+    }).index("by_code", ["code"]),
+
+    // A student identity inside one room. clientId is a client-generated
+    // UUID echoed back on every request — the durable identity.
+    students: defineTable({
+      clientId: v.string(), // unique
+      name: v.string(),
+      joinedAt: v.number(),
+      roomId: v.id("rooms"),
+    })
+      .index("by_client_id", ["clientId"])
+      .index("by_room", ["roomId"]),
+
+    // One row per student, ever (studentId unique). Autosave upserts with
+    // isFinal: false; Submit upserts with isFinal: true + submittedAt.
+    submissions: defineTable({
+      code: v.string(),
+      isFinal: v.boolean(),
+      updatedAt: v.number(),
+      submittedAt: v.optional(v.number()),
+      roomId: v.id("rooms"),
+      studentId: v.id("students"),
+    })
+      .index("by_student", ["studentId"])
+      .index("by_room", ["roomId"]),
   },
   {
     schemaValidation: false,

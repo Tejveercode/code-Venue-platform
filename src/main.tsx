@@ -4,22 +4,31 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, useEffect, lazy, Suspense } from "react";
+import React, { StrictMode, lazy, Suspense, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
+const About = lazy(() => import("./pages/About.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const ExaminerPortal = lazy(() => import("./pages/ExaminerPortal.tsx"));
+const Submissions = lazy(() => import("./pages/Submissions.tsx"));
+const StudentPortal = lazy(() => import("./pages/StudentPortal.tsx"));
+const Exam = lazy(() => import("./pages/Exam.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-pulse text-muted-foreground">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-[#f7f3ec]">
+      <div
+        className="animate-pulse text-sm font-medium"
+        style={{ color: "#6b5d52" }}
+      >
+        Loading…
+      </div>
     </div>
   );
 }
@@ -82,8 +91,6 @@ class RootErrorBoundary extends React.Component<
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
-
-
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
@@ -107,7 +114,6 @@ function RouteSyncer() {
   return null;
 }
 
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
@@ -120,18 +126,26 @@ createRoot(document.getElementById("root")!).render(
           <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/auth" element={<AuthPage />} />
               <Route
-                path="/auth"
-                element={<AuthPage redirectAfterAuth="/dashboard" />}
-              />
-              <Route
-                path="/dashboard"
+                path="/examiner-portal"
                 element={
                   <RequireAuth>
-                    <Dashboard />
+                    <ExaminerPortal />
                   </RequireAuth>
                 }
               />
+              <Route
+                path="/submissions/:roomId"
+                element={
+                  <RequireAuth>
+                    <Submissions />
+                  </RequireAuth>
+                }
+              />
+              <Route path="/student-portal" element={<StudentPortal />} />
+              <Route path="/exam/:code" element={<Exam />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
