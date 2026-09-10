@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
-import { ChevronDown, X } from "lucide-react";
+import { Link, useLocation } from "react-router";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { PixelCanvas } from "./PixelCanvas";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -38,25 +38,55 @@ function AuthAwareActions() {
 }
 
 export function VenueHeader({ actions }: { actions?: ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+
+  // Close the mobile menu whenever the route changes.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  const navLinks = (
+    <>
+      <Link className="cv-nav-link" to="/about">
+        About
+      </Link>
+      <Link className="cv-nav-link" to="/examiner-portal">
+        Examiner
+      </Link>
+      <Link className="cv-nav-link" to="/student-portal">
+        Student
+      </Link>
+    </>
+  );
+
   return (
     <header className="cv-header">
       <div className="cv-header-inner">
         <Link to="/" className="cv-logo" aria-label="Code Venue home">
           Code&nbsp;<em>Venue</em>
         </Link>
-        <nav className="cv-nav">
-          <Link className="cv-nav-link" to="/about">
-            About
-          </Link>
-          <Link className="cv-nav-link" to="/examiner-portal">
-            Examiner
-          </Link>
-          <Link className="cv-nav-link" to="/student-portal">
-            Student
-          </Link>
+        <nav className="cv-nav">{navLinks}</nav>
+        <div className="cv-header-actions">
           <AuthAwareActions />
           {actions}
-        </nav>
+        </div>
+        <button
+          className="cv-menu-toggle"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+      {/* Mobile dropdown menu — links first, then auth actions. */}
+      <div className={"cv-mobile-menu" + (menuOpen ? " open" : "")}>
+        {navLinks}
+        <div className="cv-mobile-actions">
+          <AuthAwareActions />
+          {actions}
+        </div>
       </div>
     </header>
   );

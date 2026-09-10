@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { useMutation } from "convex/react";
 
 function resolveRedirectAfterAuth(
   returnTo: string | null,
@@ -20,6 +21,7 @@ type Mode = "signin" | "signup";
 function AuthCard() {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
+  const setExaminerName = useMutation(api.exams.setExaminerName);
   const [searchParams] = useSearchParams();
   const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"));
 
@@ -69,6 +71,17 @@ function AuthCard() {
         formData.set("name", name.trim());
       }
       await signIn("email-otp", formData);
+
+      // Persist the typed name onto the examiner record right after the
+      // account exists — this is the name the portal greets the examiner with.
+      if (mode === "signup" && name.trim()) {
+        try {
+          await setExaminerName({ name: name.trim() });
+        } catch {
+          // ensureExaminer will fall back to the email prefix if this races.
+        }
+      }
+
       navigate(redirect, { replace: true });
     } catch {
       setError("The verification code you entered is incorrect.");

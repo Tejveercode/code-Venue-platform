@@ -71,6 +71,33 @@ export const ensureExaminer = mutation({
   },
 });
 
+/** Store the examiner's display name on signup (updates user + examiner rows). */
+export const setExaminerName = mutation({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
+    const name = args.name.trim();
+    if (!name) return { ok: false };
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (user) {
+      await ctx.db.patch(user._id, { name });
+    }
+
+    // Keep the examiner row in sync so the portal always shows this name.
+    const examiner = await ctx.db
+      .query("examiners")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (examiner) {
+      await ctx.db.patch(examiner._id, { name });
+    }
+
+    return { ok: true };
+  },
+});
+
 /** Current examiner record for the portal header. */
 export const getMyExaminer = query({
   args: {},
