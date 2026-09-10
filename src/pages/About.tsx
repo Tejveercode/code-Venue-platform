@@ -1,192 +1,209 @@
-import { useEffect } from "react";
-import {
-  Cpu,
-  Eye,
-  Gauge,
-  MonitorPlay,
-  ServerCog,
-  ShieldCheck,
-  Timer,
-} from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useNavigate } from "react-router";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
 
-const FEATURES = [
-  {
-    icon: Gauge,
-    title: "Instant rooms",
-    body: "Create an exam room in one click and get a shareable CV-code. No provisioning, no setup ceremony — open the portal and go.",
-  },
-  {
-    icon: MonitorPlay,
-    title: "Live exam venue",
-    body: "Students join with a name and a code, meet the question above their editor, and start coding immediately.",
-  },
-  {
-    icon: Timer,
-    title: "Server-anchored clock",
-    body: "The countdown is computed from the room's start time, so refreshing, switching tabs, or changing devices never buys extra time.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Honest submissions",
-    body: "One submission record per student. Final submits are timestamped, late work is flagged instead of rejected, and drafts autosave.",
-  },
-  {
-    icon: ServerCog,
-    title: "Real persistence",
-    body: "Every keystroke interval lands in the database. A crashed laptop or a dead battery doesn't erase a student's work.",
-  },
-  {
-    icon: Eye,
-    title: "Focused grading",
-    body: "Open a room's submissions and read each student's final code in one clean view — pick a name, read the code.",
-  },
-];
+/**
+ * React equivalent of the original about.html <script> IntersectionObserver:
+ * observes each section and adds .is-visible when 15% enters the viewport
+ * (threshold: 0.15, rootMargin: "0px 0px -50px 0px").
+ */
+function Reveal({ className, children }: { className: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement | null>(null);
 
-const STACK = [
-  "React + TypeScript",
-  "Convex real-time backend",
-  "Convex Auth (email OTP)",
-  "Canvas2D pixel ambience",
-  "Custom CSS design system",
-  "Poppins typeface",
-];
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -50px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-const TEAM = [
-  {
-    name: "Product & Design",
-    role: "The venue concept",
-    body: "Mapped the examiner's whole ritual — create, share, watch, grade — and shaped the interface around it with a warm, calm palette.",
-  },
-  {
-    name: "Engineering",
-    role: "Real-time exam engine",
-    body: "Built the room lifecycle, autosave pipeline, and server-anchored timers on Convex so every client sees the same exam truth.",
-  },
-  {
-    name: "Fairness & Integrity",
-    role: "Rules that hold up",
-    body: "Defined capacity limits, late-submit flagging, and immutable final submissions — honest mechanics over surveillance theater.",
-  },
-];
+  return (
+    <section ref={ref} className={className}>
+      {children}
+    </section>
+  );
+}
 
 export default function About() {
+  const navigate = useNavigate();
+
   useEffect(() => {
-    document.title = "About — Code Venue";
+    document.title = "Code Venue — About";
   }, []);
 
   return (
     <CodeVenuePage>
       <div className="cv-shell">
         <VenueHeader />
-        <main className="cv-about-wrap">
-          <span className="cv-kicker">About the venue</span>
-          <h1 className="cv-about-title">
-            A calm place to run
-            <br />
-            live coding <em>exams.</em>
-          </h1>
-          <p className="cv-about-lede">
-            Code Venue exists because live coding exams deserve better than a
-            shared doc and a broken clock. We built a single venue where
-            examiners create a room, write the problem, and share a short code —
-            and students join with just their name, no accounts, no setup. Work
-            autosaves as it's typed, submissions are timestamped and locked, and
-            grading happens in one focused view.
-          </p>
 
-          <div className="cv-about-grid">
-            <div className="cv-card cv-card-hover cv-feature-card">
-              <div className="cv-role-icon">
-                <MonitorPlay size={20} />
-              </div>
-              <h4>The idea</h4>
+        <main className="about-container">
+          {/* Block 1: Their Problem (Hero) */}
+          <Reveal className="about-section reveal-up">
+            <h1
+              className="glitch-text"
+              data-text="You wrote working code. You still got a zero."
+            >
+              You wrote working code.
+              <br />
+              You still got a zero.
+            </h1>
+            <p className="about-lead">
+              Not because your logic was wrong — because one teacher had four
+              minutes to check forty screens, and yours got a glance instead of a
+              look. If that sounds familiar, you already know why Code Venue
+              exists.
+            </p>
+          </Reveal>
+
+          {/* Block 2: Why We Started */}
+          <Reveal className="about-section split-section reveal-left">
+            <div className="section-content card-glass">
+              <div className="badge">The Origin</div>
+              <h2>Why We Started</h2>
               <p>
-                Running a live coding exam shouldn't require juggling screens,
-                files, and pasted snippets. A room, a code, and a clock — that's
-                the whole workflow.
+                We didn't set out to build an exam platform. We sat through one
+                lab test where a teammate — code fully working — walked away
+                with zero marks, because a rushed, walk-around check has no room
+                for a second look.
+              </p>
+              <p className="highlight-quote">
+                "That's not a grading problem. That's a time problem wearing a
+                grading problem's face."
               </p>
             </div>
-            <div className="cv-card cv-card-hover cv-feature-card">
-              <div className="cv-role-icon">
-                <ShieldCheck size={20} />
-              </div>
-              <h4>Fair by design</h4>
+          </Reveal>
+
+          {/* Block 3: What We Stand For */}
+          <Reveal className="about-section split-section reverse reveal-right">
+            <div className="section-content card-glass border-glow">
+              <div className="badge">The Philosophy</div>
+              <h2>What We Stand For</h2>
               <p>
-                Timers live on the server, identity is a durable client key —
-                not a name — and late submissions are flagged rather than
-                rejected. The system is honest with everyone in the room.
+                We believe a mark should reflect what you actually wrote, not
+                how many seconds a teacher had left. Code Venue doesn't grade
+                for you — we're not interested in replacing a teacher's
+                judgment.
+              </p>
+              <p>
+                We just make sure that judgment gets applied properly: with the
+                full file, in the teacher's own time, with a record of exactly
+                what happened during the exam. Teacher runs the room. We just
+                make sure nothing gets lost in the rush.
               </p>
             </div>
-            <div className="cv-card cv-card-hover cv-feature-card">
-              <div className="cv-role-icon">
-                <Timer size={20} />
-              </div>
-              <h4>What's next</h4>
-              <p>
-                This first version covers one room, end to end: create, join,
-                code, autosave, submit, end, and grade. Deeper examiner tools
-                and code execution are on the roadmap.
+          </Reveal>
+
+          {/* Block 4: Proof */}
+          <Reveal className="about-section text-center reveal-zoom">
+            <h2>This isn't a pitch deck idea.</h2>
+            <p className="about-sub">
+              The landing page and examiner portal are live. The database and
+              backend architecture are built and in active development.
+            </p>
+            <p className="about-sub">
+              Every feature on this site — the 6-digit room codes, the
+              tab-switch monitoring, the one-click zip download — is something
+              we've actually built toward, not something we're promising.
+            </p>
+
+            <div className="tech-stack">
+              <span className="tech-pill float-1">Next.js</span>
+              <span className="tech-pill float-2">Node.js</span>
+              <span className="tech-pill float-3">PostgreSQL</span>
+              <span className="tech-pill float-1">Redis</span>
+              <span className="tech-pill float-2">Socket.io</span>
+              <span className="tech-pill float-3">Judge0</span>
+            </div>
+          </Reveal>
+
+          {/* Bonus: The Team */}
+          <Reveal className="about-section team-section reveal-up">
+            <div className="text-center" style={{ marginBottom: 40 }}>
+              <div className="badge">The Creators</div>
+              <h2>We're not a company.</h2>
+              <p className="about-sub">
+                Built by four BCA students under Mr. Arvinder Singh at
+                Chandigarh University. We're the students who got the zero, and
+                decided to fix the reason for it.
               </p>
             </div>
-          </div>
 
-          <section className="cv-about-section">
-            <h2 className="cv-section-title">What you get</h2>
-            <p className="cv-section-sub">
-              The full arc of a live exam — before, during, and after — handled
-              by the venue itself.
-            </p>
-            <div className="cv-feature-grid">
-              {FEATURES.map((f) => (
-                <div key={f.title} className="cv-card cv-card-hover cv-feature-card">
-                  <div className="cv-role-icon">
-                    <f.icon size={20} />
-                  </div>
-                  <h4>{f.title}</h4>
-                  <p>{f.body}</p>
-                </div>
-              ))}
+            <div className="team-grid">
+              <a
+                href="https://github.com/Tejveercode"
+                target="_blank"
+                rel="noreferrer"
+                className="team-card hover-glow"
+              >
+                <div className="team-avatar">TS</div>
+                <h3>Tejveer</h3>
+                <span>BCA Student</span>
+              </a>
+              <div className="team-card hover-glow">
+                <div className="team-avatar">AS</div>
+                <h3>Akashdeep</h3>
+                <span>BCA Student</span>
+              </div>
+              <div className="team-card hover-glow">
+                <div className="team-avatar">A</div>
+                <h3>Aditya</h3>
+                <span>BCA Student</span>
+              </div>
+              <div className="team-card hover-glow">
+                <div className="team-avatar">D</div>
+                <h3>Danish</h3>
+                <span>BCA Student</span>
+              </div>
             </div>
-          </section>
+          </Reveal>
 
-          <section className="cv-about-section">
-            <h2 className="cv-section-title">Built with</h2>
-            <p className="cv-section-sub">
-              A deliberately small stack, chosen so the venue stays fast and
-              dependable under exam pressure.
-            </p>
-            <div className="cv-stack-row">
-              {STACK.map((item) => (
-                <span key={item} className="cv-stack-pill">
-                  <Cpu size={13} /> {item}
-                </span>
-              ))}
-            </div>
-          </section>
+          {/* Block 5: Clear Next Step */}
+          <Reveal className="about-section text-center cta-section reveal-zoom">
+            <h2 style={{ marginBottom: 30 }}>Choose Your Venue</h2>
 
-          <section className="cv-about-section">
-            <h2 className="cv-section-title">The team</h2>
-            <p className="cv-section-sub">
-              Built by a small crew of exam survivors who wanted better for
-              everyone in the room.
-            </p>
-            <div className="cv-about-grid">
-              {TEAM.map((m) => (
-                <div key={m.name} className="cv-card cv-card-hover cv-feature-card">
-                  <div className="cv-role-icon">
-                    <span className="cv-team-initials">
-                      {m.name.slice(0, 1)}
-                    </span>
-                  </div>
-                  <h4>{m.name}</h4>
-                  <p className="cv-team-role">{m.role}</p>
-                  <p>{m.body}</p>
-                </div>
-              ))}
+            <div className="cta-grid">
+              <div className="cta-card examiner-cta">
+                <h3>For Teachers</h3>
+                <p>
+                  Create a room and see what a monitored, unhurried grading
+                  process actually feels like.
+                </p>
+                <button
+                  className="terminal-btn"
+                  onClick={() => navigate("/examiner-portal")}
+                >
+                  <span className="prompt">$</span> examiner-portal --enter
+                </button>
+              </div>
+
+              <div className="cta-card student-cta">
+                <h3>For Students</h3>
+                <p>
+                  The next test you sit shouldn't come down to how fast someone
+                  can glance at your screen.
+                </p>
+                <button
+                  className="terminal-btn"
+                  onClick={() => navigate("/student-portal")}
+                >
+                  <span className="prompt">$</span> student-portal --enter
+                </button>
+              </div>
             </div>
-          </section>
+          </Reveal>
         </main>
+
         <footer className="cv-footer">
           Code Venue — where live coding exams happen.
         </footer>
