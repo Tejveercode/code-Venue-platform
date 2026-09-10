@@ -65,7 +65,7 @@ function StatCard({
 }
 
 export default function ExaminerPortal() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   const examiner = useQuery(api.exams.getMyExaminer);
@@ -233,10 +233,28 @@ export default function ExaminerPortal() {
 
   const displayName = examiner?.name ?? user?.name ?? "examiner";
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/");
+    } catch {
+      // stay on the portal; RequireAuth will re-guard on next navigation
+    }
+  };
+
   return (
     <CodeVenuePage>
       <div className="cv-shell">
-        <VenueHeader />
+        <VenueHeader
+          actions={
+            <button
+              className="cv-btn cv-btn-secondary cv-btn-sm"
+              onClick={() => void handleSignOut()}
+            >
+              Sign Out
+            </button>
+          }
+        />
         <main className="cv-page-wrap">
           <div className="cv-page-head">
             <div>
