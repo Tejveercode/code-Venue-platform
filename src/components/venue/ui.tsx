@@ -46,43 +46,76 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
     setMenuOpen(false);
   }, [location.pathname]);
 
+  // EXACT original header structure — exactly three direct flex children
+  // spread by justify-content: space-between:
+  //   1. .cv-logo (far left)
+  //   2. nav > ul.cv-nav-list (gap: 32px — naturally center/left-center)
+  //   3. .cv-auth-buttons (far right)
+  // The hamburger toggle + mobile menu are display:none on desktop, so
+  // desktop always renders exactly the three-child space-between layout.
+  const path = location.pathname;
   const navLinks = (
     <>
-      <Link className="cv-nav-link" to="/about">
-        About
-      </Link>
-      <Link className="cv-nav-link" to="/examiner-portal">
-        Examiner
-      </Link>
-      <Link className="cv-nav-link" to="/student-portal">
-        Student
-      </Link>
+      <li>
+        <Link
+          className={"cv-nav-link" + (path.startsWith("/about") ? " active" : "")}
+          to="/about"
+        >
+          About
+        </Link>
+      </li>
+      <li>
+        <Link
+          className={
+            "cv-nav-link" +
+            (path.startsWith("/examiner-portal") || path.startsWith("/submissions")
+              ? " active"
+              : "")
+          }
+          to="/examiner-portal"
+        >
+          Examiner
+        </Link>
+      </li>
+      <li>
+        <Link
+          className={
+            "cv-nav-link" +
+            (path.startsWith("/student-portal") || path.startsWith("/exam")
+              ? " active"
+              : "")
+          }
+          to="/student-portal"
+        >
+          Student
+        </Link>
+      </li>
     </>
   );
 
   return (
     <header className="cv-header">
-      <div className="cv-header-inner">
-        <Link to="/" className="cv-logo" aria-label="Code Venue home">
-          Code&nbsp;<em>Venue</em>
-        </Link>
-        <nav className="cv-nav">{navLinks}</nav>
-        <div className="cv-header-actions">
-          <AuthAwareActions />
-          {actions}
-        </div>
-        <button
-          className="cv-menu-toggle"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((o) => !o)}
-        >
-          {menuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+      <Link to="/" className="cv-logo" aria-label="Code Venue home">
+        Code&nbsp;<em>Venue</em>
+      </Link>
+      <nav className="cv-nav" aria-label="Primary">
+        <ul className="cv-nav-list">{navLinks}</ul>
+      </nav>
+      <div className="cv-auth-buttons">
+        <AuthAwareActions />
+        {actions}
       </div>
+      <button
+        className="cv-menu-toggle"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        {menuOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
       {/* Mobile dropdown menu — links first, then auth actions. */}
       <div className={"cv-mobile-menu" + (menuOpen ? " open" : "")}>
-        {navLinks}
+        <ul className="cv-nav-list">{navLinks}</ul>
         <div className="cv-mobile-actions">
           <AuthAwareActions />
           {actions}
