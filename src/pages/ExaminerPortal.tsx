@@ -21,7 +21,7 @@ import {
   Plus,
   Square,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router";
 import { PENDING_NAME_KEY } from "@/pages/Auth";
@@ -43,7 +43,7 @@ const EMPTY_FORM: RoomFormState = {
   enrolledLimit: "30",
 };
 
-function StatCard({
+const StatCard = memo(function StatCard({
   label,
   value,
   live,
@@ -63,7 +63,7 @@ function StatCard({
       <div className="cv-stat-value">{value}</div>
     </div>
   );
-}
+});
 
 export default function ExaminerPortal() {
   const { user, signOut } = useAuth();
@@ -211,7 +211,9 @@ export default function ExaminerPortal() {
     return Math.round(total * 100);
   }, [rooms, counts]);
 
-  const openForm = (room?: Room) => {
+  // Stable handlers — they're passed down into the room accordion rows, so
+  // identity changes would re-render every row on any portal state change.
+  const openForm = useCallback((room?: Room) => {
     if (room) {
       setEditRoom(room);
       setForm({
@@ -226,7 +228,7 @@ export default function ExaminerPortal() {
     }
     setFormError(null);
     setFormOpen(true);
-  };
+  }, []);
 
   const submitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -282,7 +284,7 @@ export default function ExaminerPortal() {
     }
   };
 
-  const copyCode = async (room: Room) => {
+  const copyCode = useCallback(async (room: Room) => {
     try {
       await navigator.clipboard.writeText(room.code);
     } catch {
@@ -290,16 +292,16 @@ export default function ExaminerPortal() {
     }
     setCopiedId(room._id);
     setTimeout(() => setCopiedId((id) => (id === room._id ? null : id)), 1500);
-  };
+  }, []);
 
-  const toggleRow = (id: string) => {
+  const toggleRow = useCallback((id: string) => {
     setOpenIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   // examiner === null means the ensure hasn't completed yet — that only
   // happens for a brand-new user (returning users always have a row), so

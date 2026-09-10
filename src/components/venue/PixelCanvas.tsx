@@ -7,6 +7,13 @@
  * pixels instantly at full size (no animation).
  *
  * Auto-initializes on any element with a [data-pixel-canvas] attribute.
+ *
+ * Performance notes:
+ *  - Resize rebuilds are debounced (220ms) behind a ResizeObserver on the
+ *    host element — no rebuild-per-event, and no window resize listener.
+ *  - The animation loop pauses when the tab is hidden (Page Visibility API)
+ *    and when nothing changed since the last frame (the settled state is
+ *    static), so a backgrounded tab costs zero CPU.
  */
 
 import { useEffect, useRef } from "react";
@@ -14,6 +21,7 @@ import { useEffect, useRef } from "react";
 const COLORS = ["#d8cfc0", "#c8966e"] as const;
 const GAP = 5;
 const SPEED = 30; // wave front travel speed, px per second
+const RESIZE_DEBOUNCE_MS = 220;
 
 type Pixel = {
   x: number;
@@ -31,8 +39,10 @@ type PixelCanvasController = {
   height: number;
   cell: number;
   start: number | null;
+  pausedAt: number | null; // performance.now() when the tab was hidden
   raf: number | null;
-  resizeHandler: () => void;
+  running: boolean; // rAF loop is active (settled ⇒ false)
+  reducedMotion: boolean;
 };
 
 const controllers = new Set<PixelCanvasController>();
@@ -44,6 +54,7 @@ function prefersReducedMotion(): boolean {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
 }
+
 function drawStatic(c: PixelCanvasController) {
   const { ctx, pixels, cell } = c;
   ctx.clearRect(0, 0, c.width, c.height);
@@ -56,12 +67,18 @@ function drawStatic(c: PixelCanvasController) {
 }
 
 function tick(c: PixelCanvasController) {
+  if (document.hidden) {
+    // Tab was backgrounded mid-animation: stop the loop. start/pausedAt are
+    // frozen so the wave resumes exactly where it left off on return.
+    c.raf = null;
+    c.running = false;
+    return;
+  }
   const { ctx, pixels, cell } = c;
   if (c.start === null) c.start = performance.now();
   const t = (performance.now() - c.start) / 1000;
 
   const maxDelay = pixels.reduce((m, p) => Math.max(m, p.delay), 0);
-  const wave = t * SPEED;
   let allDone = t > (maxDelay / SPEED) * 2.2; // generous settle window
 
   ctx.clearRect(0, 0, c.width, c.height);
@@ -93,9 +110,18 @@ function tick(c: PixelCanvasController) {
   if (!allDone) {
     c.raf = requestAnimationFrame(() => tick(c));
   } else {
+    // Settled: the image is static, so stop consuming rAF cycles entirely.
     drawStatic(c);
     c.raf = null;
+    c.running = false;
   }
+}
+
+function startAnimation(c: PixelCanvasController) {
+  if (c.running || c.reducedMotion || document.hidden) return;
+  c.running = true;
+  if (c.raf !== null) cancelAnimationFrame(c.raf);
+  c.raf = requestAnimationFrame(() => tick(c));
 }
 
 function buildController(canvas: HTMLCanvasElement): PixelCanvasController {
@@ -108,8 +134,10 @@ function buildController(canvas: HTMLCanvasElement): PixelCanvasController {
     height: 0,
     cell: GAP,
     start: null,
+    pausedAt: null,
     raf: null,
-    resizeHandler: () => {},
+    running: false,
+    reducedMotion: prefersReducedMotion(),
   };
 
   const rebuild = (animate: boolean) => {
@@ -144,21 +172,89 @@ function buildController(canvas: HTMLCanvasElement): PixelCanvasController {
     c.pixels = pixels;
     c.cell = cell;
 
-    if (animate && !prefersReducedMotion()) {
-      c.start = null;
-      if (c.raf !== null) cancelAnimationFrame(c.raf);
-      c.raf = requestAnimationFrame(() => tick(c));
+    if (animate && !c.reducedMotion && !document.hidden) {
+      c.start = null; // replay the wave after a real layout change
+      startAnimation(c);
     } else {
       if (c.raf !== null) cancelAnimationFrame(c.raf);
       c.raf = null;
+      c.running = false;
       drawStatic(c);
     }
   };
 
-  c.resizeHandler = () => rebuild(true);
+  // Debounced rebuild: ResizeObserver fires per frame during a drag; we only
+  // rebuild once the size has been stable for RESIZE_DEBOUNCE_MS.
+  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastW = -1;
+  let lastH = -1;
+  const observer =
+    typeof ResizeObserver === "function" ? new ResizeObserver(() => {
+      if (window.innerWidth === lastW && window.innerHeight === lastH) return;
+      if (resizeTimer !== null) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        if (window.innerWidth !== lastW || window.innerHeight !== lastH) {
+          lastW = window.innerWidth;
+          lastH = window.innerHeight;
+          rebuild(true);
+        }
+      }, RESIZE_DEBOUNCE_MS);
+    }) : null;
+
+  // Initial build (records the baseline size for the observer guard).
+  lastW = window.innerWidth;
+  lastH = window.innerHeight;
   rebuild(true);
 
-  window.addEventListener("resize", c.resizeHandler);
+  if (observer) {
+    observer.observe(canvas);
+  } else {
+    // Very old browsers: fall back to a debounced window resize listener.
+    const onResize = () => {
+      if (resizeTimer !== null) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => rebuild(true), RESIZE_DEBOUNCE_MS);
+    };
+    window.addEventListener("resize", onResize);
+    (c as PixelCanvasController & { __onResize?: () => void }).__onResize = onResize;
+  }
+
+  // Page Visibility: stop the loop when hidden; resume (frozen timeline) when
+  // visible again. Also handles the "hidden at settle" edge case.
+  const onVisibility = () => {
+    if (document.hidden) {
+      c.pausedAt = c.start !== null ? performance.now() : null;
+      if (c.raf !== null) cancelAnimationFrame(c.raf);
+      c.raf = null;
+      c.running = false;
+    } else {
+      if (c.pausedAt !== null && c.start !== null) {
+        // Shift the timeline forward by the hidden duration so the animation
+        // continues exactly where it paused.
+        c.start += performance.now() - c.pausedAt;
+        c.pausedAt = null;
+      }
+      if (c.raf === null && !c.running) {
+        const maxDelay = c.pixels.reduce((m, p) => Math.max(m, p.delay), 0);
+        const t =
+          c.start !== null ? (performance.now() - c.start) / 1000 : 0;
+        if (t <= (maxDelay / SPEED) * 2.2) {
+          startAnimation(c);
+        }
+        // else: already settled while hidden — static image is correct.
+      }
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+
+  (c as PixelCanvasController & {
+    __observer?: ResizeObserver;
+    __onVisibility?: () => void;
+    __resizeTimer?: ReturnType<typeof setTimeout> | null;
+  }).__observer = observer ?? undefined;
+  (c as PixelCanvasController & { __onVisibility?: () => void }).__onVisibility =
+    onVisibility;
+
   controllers.add(c);
   return c;
 }
@@ -175,8 +271,16 @@ export function PixelCanvas() {
     canvas.style.pointerEvents = "none";
     host.appendChild(canvas);
     const c = buildController(canvas);
+    const cAny = c as PixelCanvasController & {
+      __observer?: ResizeObserver;
+      __onVisibility?: () => void;
+      __onResize?: () => void;
+      __resizeTimer?: ReturnType<typeof setTimeout> | null;
+    };
     return () => {
-      window.removeEventListener("resize", c.resizeHandler);
+      cAny.__observer?.disconnect();
+      document.removeEventListener("visibilitychange", cAny.__onVisibility!);
+      if (cAny.__onResize) window.removeEventListener("resize", cAny.__onResize);
       if (c.raf !== null) cancelAnimationFrame(c.raf);
       canvas.remove();
       controllers.delete(c);

@@ -9,6 +9,18 @@ import {
 } from "./_generated/server";
 
 // ---------------------------------------------------------------------------
+// Limits (server-side, so the UI can't be bypassed)
+// ---------------------------------------------------------------------------
+
+const MAX_LIST_ROOMS = 200; // per examiner
+const MAX_COUNT_ROOMS = 50; // per getRoomCounts call
+const MAX_STUDENT_NAME = 60;
+const MAX_ROOM_NAME = 120;
+const MAX_ROOM_PROMPT = 10_000;
+const MAX_SUBMISSION_CODE = 64_000; // ~64KB of code per student
+const AUTOSAVE_MIN_INTERVAL_MS = 1_000; // damp spammy autosave writes
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -42,6 +54,21 @@ async function requireExaminer(ctx: MutationCtx) {
   const examiner = await getCurrentExaminer(ctx);
   if (!examiner) throw new Error("Only examiners can do this");
   return examiner;
+}
+
+/**
+ * Load a room and confirm it belongs to the current examiner. Every examiner
+ * mutation/query that touches a room MUST go through this — hiding a button
+ * in the UI is not access control.
+ */
+async function requireOwnedRoom(
+  ctx: QueryCtx | MutationCtx,
+  roomId: Id<"rooms">,
+  examinerId: Id<"examiners">,
+) {
+  const room = await ctx.db.get(roomId);
+  if (!room || room.examinerId !== examinerId) return null;
+  return room;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +224,24 @@ export const createRoom = mutation({
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
 
+    // Validation — the UI checks too, but never trust the client.
+    const name = args.name.trim();
+    const prompt = args.prompt.trim();
+    if (!name || name.length > MAX_ROOM_NAME) {
+      throw new Error(`Room name must be 1–${MAX_ROOM_NAME} characters`);
+    }
+    if (!prompt || prompt.length > MAX_ROOM_PROMPT) {
+      throw new Error(`Prompt must be 1–${MAX_ROOM_PROMPT} characters`);
+    }
+    const durationMinutes = Math.floor(args.durationMinutes);
+    const enrolledLimit = Math.floor(args.enrolledLimit);
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 24 * 60) {
+      throw new Error("Duration must be between 1 and 1440 minutes");
+    }
+    if (!Number.isFinite(enrolledLimit) || enrolledLimit < 1 || enrolledLimit > 500) {
+      throw new Error("Enrolled limit must be between 1 and 500");
+    }
+
     // Server-side CV-#### code, retried on collision (10 attempts).
     let code = "";
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -215,11 +260,11 @@ export const createRoom = mutation({
     const now = Date.now();
     const roomId = await ctx.db.insert("rooms", {
       code,
-      name: args.name,
-      prompt: args.prompt,
-      durationMinutes: Math.max(1, Math.floor(args.durationMinutes)),
+      name,
+      prompt,
+      durationMinutes,
       status: "LIVE",
-      enrolledLimit: Math.max(1, Math.floor(args.enrolledLimit)),
+      enrolledLimit,
       startedAt: now,
       examinerId: examiner._id,
     });
@@ -227,7 +272,11 @@ export const createRoom = mutation({
   },
 });
 
-/** All rooms owned by the current examiner, newest first. */
+/**
+ * All rooms owned by the current examiner, newest first. Uses the by_examiner
+ * index (no full-table filter) and is capped so a stale account with thousands
+ * of rooms can't stall the dashboard.
+ */
 export const listMyRooms = query({
   args: {},
   handler: async (ctx) => {
@@ -235,29 +284,48 @@ export const listMyRooms = query({
     if (!examiner) return [];
     const rooms = await ctx.db
       .query("rooms")
-      .filter((q) => q.eq(q.field("examinerId"), examiner._id))
-      .collect();
-    return rooms.sort((a, b) => b.startedAt - a.startedAt);
+      .withIndex("by_examiner", (q) => q.eq("examinerId", examiner._id))
+      .order("desc")
+      .take(MAX_LIST_ROOMS);
+    return rooms;
   },
 });
 
-/** Joined + final-submitted counts for a list of rooms (live via subscription). */
+/**
+ * Joined + final-submitted counts for a list of rooms (live via subscription).
+ *
+ * Ownership first: unknown or foreign roomIds are simply omitted — this is a
+ * public-shaped query, so the examiner check is the only access control.
+ *
+ * Batching: per room we run exactly two indexed reads (students by_room,
+ * submissions by_room) instead of the previous pattern that issued one
+ * by_student query PER STUDENT per room. Worst case for a full dashboard:
+ * 2 × MAX_COUNT_ROOMS indexed queries.
+ */
 export const getRoomCounts = query({
   args: { roomIds: v.array(v.id("rooms")) },
   handler: async (ctx, args) => {
+    const examiner = await getCurrentExaminer(ctx);
+    if (!examiner) return {};
+
+    const roomIds = args.roomIds.slice(0, MAX_COUNT_ROOMS);
     const counts: Record<string, { joined: number; submitted: number }> = {};
-    for (const roomId of args.roomIds) {
+
+    for (const roomId of roomIds) {
+      const room = await requireOwnedRoom(ctx, roomId, examiner._id);
+      if (!room) continue;
+
       const students = await ctx.db
         .query("students")
         .withIndex("by_room", (q) => q.eq("roomId", roomId))
-        .collect();
+        .take(room.enrolledLimit + 1);
+      const submissions = await ctx.db
+        .query("submissions")
+        .withIndex("by_room", (q) => q.eq("roomId", roomId))
+        .take(students.length + 1);
       let submitted = 0;
-      for (const s of students) {
-        const sub = await ctx.db
-          .query("submissions")
-          .withIndex("by_student", (q) => q.eq("studentId", s._id))
-          .unique();
-        if (sub && sub.isFinal) submitted++;
+      for (const s of submissions) {
+        if (s.isFinal) submitted++;
       }
       counts[roomId] = { joined: students.length, submitted };
     }
@@ -276,18 +344,34 @@ export const updateRoom = mutation({
   },
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
-    const room = await ctx.db.get(args.roomId);
-    if (!room || room.examinerId !== examiner._id) {
-      throw new Error("Room not found");
-    }
+    const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
+    if (!room) throw new Error("Room not found");
     if (room.status !== "LIVE") {
       throw new Error("Closed rooms cannot be edited");
     }
+
+    const name = args.name.trim();
+    const prompt = args.prompt.trim();
+    if (!name || name.length > MAX_ROOM_NAME) {
+      throw new Error(`Room name must be 1–${MAX_ROOM_NAME} characters`);
+    }
+    if (!prompt || prompt.length > MAX_ROOM_PROMPT) {
+      throw new Error(`Prompt must be 1–${MAX_ROOM_PROMPT} characters`);
+    }
+    const durationMinutes = Math.floor(args.durationMinutes);
+    const enrolledLimit = Math.floor(args.enrolledLimit);
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 24 * 60) {
+      throw new Error("Duration must be between 1 and 1440 minutes");
+    }
+    if (!Number.isFinite(enrolledLimit) || enrolledLimit < 1 || enrolledLimit > 500) {
+      throw new Error("Enrolled limit must be between 1 and 500");
+    }
+
     await ctx.db.patch(args.roomId, {
-      name: args.name,
-      prompt: args.prompt,
-      durationMinutes: Math.max(1, Math.floor(args.durationMinutes)),
-      enrolledLimit: Math.max(1, Math.floor(args.enrolledLimit)),
+      name,
+      prompt,
+      durationMinutes,
+      enrolledLimit,
     });
     return { ok: true };
   },
@@ -298,10 +382,8 @@ export const endRoom = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
-    const room = await ctx.db.get(args.roomId);
-    if (!room || room.examinerId !== examiner._id) {
-      throw new Error("Room not found");
-    }
+    const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
+    if (!room) throw new Error("Room not found");
     if (room.status === "CLOSED") return { ok: true };
     await ctx.db.patch(args.roomId, {
       status: "CLOSED",
@@ -319,9 +401,11 @@ export const endRoom = mutation({
 export const lookupRoomByCode = query({
   args: { code: v.string() },
   handler: async (ctx, args) => {
+    const code = args.code.trim().toUpperCase();
+    if (!/^CV-\d{4}$/.test(code)) return null;
     const room = await ctx.db
       .query("rooms")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
     if (!room) return null;
     return { name: room.name, status: room.status };
@@ -336,13 +420,31 @@ export const joinRoom = mutation({
     existingClientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Validation / spam damping: reject malformed input with one cheap check
+    // before it ever hits the database.
+    const code = args.code.trim().toUpperCase();
+    if (!/^CV-\d{4}$/.test(code)) {
+      return {
+        error: 'Room codes look like "CV-1234". Double-check it with your examiner.',
+      };
+    }
+    const name = args.name.trim();
+    if (!name || name.length > MAX_STUDENT_NAME) {
+      return {
+        error: `Please enter your name (1–${MAX_STUDENT_NAME} characters).`,
+      };
+    }
+    if (args.existingClientId && args.existingClientId.length > 128) {
+      return { error: "Invalid session. Please join again." };
+    }
+
     const room = await ctx.db
       .query("rooms")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
     if (!room) {
       return {
-        error: `No room found with code "${args.code}". Double-check it with your examiner.`,
+        error: `No room found with code "${code}". Double-check it with your examiner.`,
       };
     }
     if (room.status === "CLOSED") {
@@ -383,7 +485,7 @@ export const joinRoom = mutation({
     const clientId = randomToken();
     const studentId = await ctx.db.insert("students", {
       clientId,
-      name: args.name,
+      name,
       joinedAt: Date.now(),
       roomId: room._id,
     });
@@ -427,7 +529,13 @@ async function upsertSubmission(
   });
 }
 
-/** Student autosave (isFinal: false) or final submit (isFinal: true). */
+/**
+ * Student autosave (isFinal: false) or final submit (isFinal: true).
+ *
+ * Auth is the clientId (a 128-bit server-minted token stored per-browser);
+ * a student can only ever write to their own row — never another student's.
+ * A 1s write-throttle damps scripted/rapid-fire autosave spam.
+ */
 export const saveSubmission = mutation({
   args: {
     clientId: v.string(),
@@ -435,6 +543,13 @@ export const saveSubmission = mutation({
     isFinal: v.boolean(),
   },
   handler: async (ctx, args) => {
+    if (args.clientId.length > 128) {
+      return { error: "Invalid session — please rejoin the room." } as const;
+    }
+    if (args.code.length > MAX_SUBMISSION_CODE) {
+      return { error: "Submission is too large (64KB limit)." } as const;
+    }
+
     const student = await ctx.db
       .query("students")
       .withIndex("by_client_id", (q) => q.eq("clientId", args.clientId))
@@ -469,6 +584,16 @@ export const saveSubmission = mutation({
     if (existing && existing.isFinal) return { locked: true } as const;
     if (room.status === "CLOSED") return { locked: true } as const;
 
+    // Spam damping: at most one autosave write per second. The content is
+    // identical from the student's point of view (next keystroke re-saves);
+    // we just skip the redundant DB write.
+    if (
+      existing &&
+      Date.now() - existing.updatedAt < AUTOSAVE_MIN_INTERVAL_MS
+    ) {
+      return { submissionId: existing._id } as const;
+    }
+
     const submissionId = await upsertSubmission(
       ctx,
       room._id,
@@ -484,6 +609,7 @@ export const saveSubmission = mutation({
 export const getMySubmission = query({
   args: { clientId: v.string() },
   handler: async (ctx, args) => {
+    if (args.clientId.length > 128) return null;
     const student = await ctx.db
       .query("students")
       .withIndex("by_client_id", (q) => q.eq("clientId", args.clientId))
@@ -512,18 +638,16 @@ export const getRoomSubmissions = query({
   handler: async (ctx, args) => {
     const examiner = await getCurrentExaminer(ctx);
     if (!examiner) return { error: "Not authenticated" } as const;
-    const room = await ctx.db.get(args.roomId);
-    if (!room || room.examinerId !== examiner._id) {
-      return { error: "Room not found" } as const;
-    }
+    const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
+    if (!room) return { error: "Room not found" } as const;
     const students = await ctx.db
       .query("students")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-      .collect();
+      .take(room.enrolledLimit + 1);
     const submissions = await ctx.db
       .query("submissions")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-      .collect();
+      .take(students.length + 1);
     const byStudent = new Map(submissions.map((s) => [s.studentId, s]));
     const rows = students
       .map((student) => {
@@ -555,15 +679,17 @@ export const getRoomSubmissions = query({
 export const getExamRoomState = query({
   args: { code: v.string() },
   handler: async (ctx, args) => {
+    const code = args.code.trim().toUpperCase();
+    if (!/^CV-\d{4}$/.test(code)) return null;
     const room = await ctx.db
       .query("rooms")
-      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
     if (!room) return null;
     const students = await ctx.db
       .query("students")
       .withIndex("by_room", (q) => q.eq("roomId", room._id))
-      .collect();
+      .take(room.enrolledLimit + 1);
     return {
       roomId: room._id,
       name: room.name,

@@ -58,7 +58,9 @@ const schema = defineSchema(
       startedAt: v.number(),
       endedAt: v.optional(v.number()),
       examinerId: v.id("examiners"),
-    }).index("by_code", ["code"]),
+    })
+      .index("by_code", ["code"])
+      .index("by_examiner", ["examinerId"]),
 
     // A student identity inside one room. clientId is a client-generated
     // UUID echoed back on every request — the durable identity.

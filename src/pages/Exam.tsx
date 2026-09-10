@@ -9,7 +9,7 @@ import {
 } from "@/components/venue/ui";
 import { format } from "date-fns";
 import { Loader2, Maximize2, Minimize2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useParams } from "react-router";
 import { getStudentIdentity, setStudentIdentity } from "./StudentPortal";
@@ -20,6 +20,65 @@ function fmtClock(ms: number): string {
   const s = total % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
+
+/**
+ * Self-ticking countdown. Isolates the 1s re-render to this small component
+ * (with a tabular-num span) instead of re-rendering the whole Exam page twice
+ * per second. Stops when the tab is hidden; recomputes on visibility return.
+ */
+const Timer = memo(function Timer({
+  endsAt,
+  low,
+  onExpire,
+}: {
+  endsAt: number;
+  low: boolean;
+  onExpire?: () => void;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const expireRef = useRef(onExpire);
+  expireRef.current = onExpire;
+
+  const remaining = Math.max(0, endsAt - now);
+  const expired = remaining <= 0;
+
+  useEffect(() => {
+    if (expired) return;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval === null) {
+        setNow(Date.now());
+        interval = setInterval(() => setNow(Date.now()), 1000);
+      }
+    };
+    const stop = () => {
+      if (interval !== null) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [expired]);
+
+  useEffect(() => {
+    if (expired) expireRef.current?.();
+  }, [expired]);
+
+  return (
+    <div className={"cv-timer" + (low && !expired ? " low" : "")}>
+      {fmtClock(remaining)}
+    </div>
+  );
+});
 
 function ExamLoading() {
   return (
@@ -79,14 +138,6 @@ export default function Exam() {
   const [rejoinError, setRejoinError] = useState<string | null>(null);
   const [rejoining, setRejoining] = useState(false);
 
-  // 500ms ticker drives the countdown from the server-anchored basis:
-  // remaining = durationMinutes*60 - (now - startedAt)
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(t);
-  }, []);
-
   useEffect(() => {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
   }, [roomState?.name]);
@@ -108,10 +159,11 @@ export default function Exam() {
     lockedRef.current = locked;
   }, [locked]);
 
-  const remainingMs = roomState
-    ? Math.max(0, roomState.durationMinutes * 60_000 - (now - roomState.startedAt))
+  const endsAt = roomState
+    ? roomState.startedAt + roomState.durationMinutes * 60_000
     : 0;
-  const timeUp = roomState ? remainingMs <= 0 : false;
+  const expiredAlready =
+    roomState !== null && roomState !== undefined && endsAt <= Date.now();
 
   const doSave = async () => {
     if (!clientId || lockedRef.current) return;
@@ -165,16 +217,25 @@ export default function Exam() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codeValue, dirty, locked, clientId]);
 
-  // Auto-submit on timer expiry or when the examiner ends the room — never
-  // leave the student's work in an ambiguous state.
+  // Auto-submit when the examiner ends the room, or on timer expiry via the
+  // Timer's onExpire callback (a single timeout instead of a 500ms polling
+  // loop re-rendering the whole page).
   useEffect(() => {
     if (!roomState || !clientId || locked) return;
-    if ((roomClosed || timeUp) && !autoRef.current) {
+    if (roomClosed && !autoRef.current) {
       autoRef.current = true;
       void doSubmit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomState, roomClosed, timeUp, locked, clientId, codeValue]);
+  }, [roomState, roomClosed, locked, clientId]);
+
+  const handleTimerExpire = useCallback(() => {
+    if (!autoRef.current) {
+      autoRef.current = true;
+      void doSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Leave-warning while the exam is active (standard browser dialog).
   useEffect(() => {
@@ -321,11 +382,10 @@ export default function Exam() {
               <h1>{roomState.name}</h1>
               {roomClosed ? <ClosedPill /> : <LivePill />}
             </div>
-            <div
-              className={"cv-timer" + (remainingMs < 5 * 60_000 && !locked ? " low" : "")}
-            >
-              {fmtClock(remainingMs)}
-            </div>
+            {!locked && (
+              <Timer endsAt={endsAt} low={remainingMs < 5 * 60_000} onExpire={handleTimerExpire} />
+            )}
+            {locked && <div className="cv-timer">00:00</div>}
           </div>
 
           {isFinal ? (
@@ -431,7 +491,7 @@ export default function Exam() {
         }
       >
         <p className="cv-modal-sub" style={{ marginBottom: 0 }}>
-          Time remaining: {fmtClock(remainingMs)}
+          Time remaining: {fmtClock(Math.max(0, endsAt - Date.now()))}
         </p>
       </Modal>
     </CodeVenuePage>

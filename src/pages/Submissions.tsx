@@ -8,10 +8,66 @@ import {
 } from "@/components/venue/ui";
 import { format } from "date-fns";
 import { ArrowLeft, FileCode2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
+
+const formatSubTime = (isFinal: boolean, submittedAt: number | null, updatedAt: number) =>
+  isFinal
+    ? submittedAt
+      ? `Submitted ${format(submittedAt, "MMM d, HH:mm:ss")}`
+      : "Submitted"
+    : `Draft · saved ${format(updatedAt, "HH:mm:ss")}`;
+
+const SubRow = memo(function SubRow({
+  studentId,
+  name,
+  timeLabel,
+  selected,
+  onSelect,
+}: {
+  studentId: string;
+  name: string;
+  timeLabel: string;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <button
+      className={"cv-sub-row" + (selected ? " selected" : "")}
+      onClick={() => onSelect(studentId)}
+    >
+      <span className="cv-sub-name">{name}</span>
+      <span className="cv-sub-time">{timeLabel}</span>
+    </button>
+  );
+});
+
+const CodeView = memo(function CodeView({
+  name,
+  code,
+  isFinal,
+}: {
+  name: string;
+  code: string;
+  isFinal: boolean;
+}) {
+  return (
+    <>
+      <div className="cv-code-view-head">
+        <h3>{name}'s code</h3>
+        <span className={"cv-pill " + (isFinal ? "cv-pill-live" : "cv-pill-closed")}>
+          {isFinal ? "Final" : "Draft"}
+        </span>
+      </div>
+      {/* React renders text content escaped — stored code can never inject markup. */}
+      <pre className="cv-code-block">
+        <code>{code || "(empty)"}</code>
+      </pre>
+    </>
+  );
+});
 
 export default function Submissions() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -47,6 +103,8 @@ export default function Submissions() {
       setSelectedId(data.rows[0]!.studentId);
     }
   }, [data, selectedId]);
+
+  const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
   const rows = data?.rows ?? [];
   const selected = useMemo(
@@ -93,45 +151,28 @@ export default function Submissions() {
             <div className="cv-sub-grid">
               <div className="cv-card cv-sub-list">
                 {rows.map((row) => (
-                  <button
+                  <SubRow
                     key={row.studentId}
-                    className={
-                      "cv-sub-row" + (row.studentId === selectedId ? " selected" : "")
-                    }
-                    onClick={() => setSelectedId(row.studentId)}
-                  >
-                    <span className="cv-sub-name">{row.name}</span>
-                    <span className="cv-sub-time">
-                      {row.submission?.isFinal
-                        ? row.submission.submittedAt
-                          ? `Submitted ${format(row.submission.submittedAt, "MMM d, HH:mm:ss")}`
-                          : "Submitted"
-                        : `Draft · saved ${format(row.submission!.updatedAt, "HH:mm:ss")}`}
-                    </span>
-                  </button>
+                    studentId={row.studentId}
+                    name={row.name}
+                    timeLabel={formatSubTime(
+                      row.submission!.isFinal,
+                      row.submission!.submittedAt,
+                      row.submission!.updatedAt,
+                    )}
+                    selected={row.studentId === selectedId}
+                    onSelect={handleSelect}
+                  />
                 ))}
               </div>
 
               <div className="cv-card cv-code-view">
                 {selected?.submission ? (
-                  <>
-                    <div className="cv-code-view-head">
-                      <h3>{selected.name}'s code</h3>
-                      <span
-                        className={
-                          "cv-pill " +
-                          (selected.submission.isFinal
-                            ? "cv-pill-live"
-                            : "cv-pill-closed")
-                        }
-                      >
-                        {selected.submission.isFinal ? "Final" : "Draft"}
-                      </span>
-                    </div>
-                    <pre className="cv-code-block">
-                      <code>{selected.submission.code || "(empty)"}</code>
-                    </pre>
-                  </>
+                  <CodeView
+                    name={selected.name}
+                    code={selected.submission.code}
+                    isFinal={selected.submission.isFinal}
+                  />
                 ) : (
                   <div className="cv-empty">
                     <FileCode2 size={20} style={{ marginBottom: 8 }} />

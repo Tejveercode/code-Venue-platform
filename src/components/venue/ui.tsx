@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { PixelCanvas } from "./PixelCanvas";
@@ -142,15 +142,15 @@ export function ClosedPill() {
   return <span className="cv-pill cv-pill-closed">Closed</span>;
 }
 
-export function CodePill({ code }: { code: string }) {
+export const CodePill = memo(function CodePill({ code }: { code: string }) {
   return <span className="cv-pill cv-pill-code">{code}</span>;
-}
+});
 
 // ---------------------------------------------------------------------------
 // Question box — shared between examiner portal and the exam room
 // ---------------------------------------------------------------------------
 
-export function QuestionBox({
+export const QuestionBox = memo(function QuestionBox({
   prompt,
   label = "Prompt:",
 }: {
@@ -163,7 +163,7 @@ export function QuestionBox({
       <div className="cv-qb-body">{prompt}</div>
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Modal — real CSS fade + scale with cubic-bezier(0.16, 1, 0.3, 1)
