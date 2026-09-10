@@ -25,14 +25,14 @@ function fmtClock(ms: number): string {
  * Self-ticking countdown. Isolates the 1s re-render to this small component
  * (with a tabular-num span) instead of re-rendering the whole Exam page twice
  * per second. Stops when the tab is hidden; recomputes on visibility return.
+ * Computes its own `low` (<5 min) state per tick, so the parent never needs
+ * a live remaining-time value.
  */
 const Timer = memo(function Timer({
   endsAt,
-  low,
   onExpire,
 }: {
   endsAt: number;
-  low: boolean;
   onExpire?: () => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -41,6 +41,7 @@ const Timer = memo(function Timer({
 
   const remaining = Math.max(0, endsAt - now);
   const expired = remaining <= 0;
+  const low = remaining < 5 * 60_000;
 
   useEffect(() => {
     if (expired) return;
@@ -162,8 +163,6 @@ export default function Exam() {
   const endsAt = roomState
     ? roomState.startedAt + roomState.durationMinutes * 60_000
     : 0;
-  const expiredAlready =
-    roomState !== null && roomState !== undefined && endsAt <= Date.now();
 
   const doSave = async () => {
     if (!clientId || lockedRef.current) return;
@@ -362,12 +361,14 @@ export default function Exam() {
 
   // --- Main exam UI --------------------------------------------------------
 
+  // Computed per render — parent re-renders on keystrokes/saves, which is
+  // exactly when this label can change. The ticking lives in <Timer/>.
   const savedLabel = isFinal
     ? "Submitted"
     : saving
       ? "Saving…"
       : savedAt
-        ? now - savedAt < 15_000
+        ? Date.now() - savedAt < 15_000
           ? "Saved just now"
           : `Saved ${format(savedAt, "HH:mm")}`
         : "Not saved yet";
@@ -382,9 +383,7 @@ export default function Exam() {
               <h1>{roomState.name}</h1>
               {roomClosed ? <ClosedPill /> : <LivePill />}
             </div>
-            {!locked && (
-              <Timer endsAt={endsAt} low={remainingMs < 5 * 60_000} onExpire={handleTimerExpire} />
-            )}
+            {!locked && <Timer endsAt={endsAt} onExpire={handleTimerExpire} />}
             {locked && <div className="cv-timer">00:00</div>}
           </div>
 
