@@ -923,6 +923,210 @@ code-venue-page a,
   margin-top: 28px;
 }
 
+/* ---------- About page redesign ---------- */
+
+[data-code-venue-page] .about2 {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 56px 24px 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+
+[data-code-venue-page] .about2-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.6s var(--ease-modal),
+    transform 0.6s var(--ease-modal);
+}
+
+[data-code-venue-page] .about2-reveal.d1 {
+  transition-delay: 0.08s;
+}
+
+[data-code-venue-page] .about2-reveal.d2 {
+  transition-delay: 0.16s;
+}
+
+[data-code-venue-page] .about2-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .about2-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+[data-code-venue-page] .about2-hero {
+  text-align: center;
+}
+
+[data-code-venue-page] .about2-hero h1 {
+  font-size: clamp(32px, 5.4vw, 54px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 14px 0 0;
+}
+
+[data-code-venue-page] .about2-hero h1 em {
+  font-style: normal;
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .about2-hero p {
+  margin: 18px auto 0;
+  max-width: 560px;
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .about2-pillars {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+[data-code-venue-page] .about2-pillar {
+  padding: 28px 30px;
+}
+
+[data-code-venue-page] .about2-kicker {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .about2-pillar h2 {
+  margin: 10px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+[data-code-venue-page] .about2-pillar p {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .about2-team {
+  text-align: center;
+}
+
+[data-code-venue-page] .about2-team h2 {
+  margin: 14px 0 0;
+  font-size: clamp(26px, 3.6vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+[data-code-venue-page] .about2-team > p {
+  margin: 14px auto 0;
+  max-width: 520px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .about2-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 30px;
+}
+
+[data-code-venue-page] .about2-member-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+}
+
+[data-code-venue-page] a.about2-member-card:hover .team-avatar {
+  border-color: var(--accent-caramel);
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .about2-member h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+[data-code-venue-page] .about2-member span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .about2-member-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-caramel);
+  opacity: 0.85;
+}
+
+[data-code-venue-page] a.about2-member-card:hover .about2-member-link {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+[data-code-venue-page] .about2-cta {
+  padding: 40px 28px;
+  text-align: center;
+}
+
+[data-code-venue-page] .about2-cta h2 {
+  margin: 0;
+  font-size: clamp(24px, 3.4vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+[data-code-venue-page] .about2-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+@media (max-width: 860px) {
+  [data-code-venue-page] .about2 {
+    padding: 36px 16px 64px;
+    gap: 48px;
+  }
+  [data-code-venue-page] .about2-pillar {
+    padding: 24px 20px;
+  }
+  [data-code-venue-page] .about2-member-link span,
+  [data-code-venue-page] .about2-member-link {
+    display: none;
+  }
+}
+
 [data-code-venue-page] .cv-panel {
   margin-top: 28px;
   padding: 24px 24px 16px;

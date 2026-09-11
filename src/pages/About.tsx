@@ -1,14 +1,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router";
+import { Github, ArrowRight } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
 
 /**
- * React equivalent of the original about.html <script> IntersectionObserver:
- * observes each section and adds .is-visible when 15% enters the viewport
- * (threshold: 0.15, rootMargin: "0px 0px -50px 0px").
+ * Reveal-on-scroll: adds .is-visible when 15% of the element enters the
+ * viewport (threshold 0.15, rootMargin "0px 0px -50px 0px") — same behavior
+ * the page has always had, kept for the redesign.
  */
 function Reveal({ className, children }: { className: string; children: ReactNode }) {
-  const ref = useRef<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -29,11 +30,44 @@ function Reveal({ className, children }: { className: string; children: ReactNod
   }, []);
 
   return (
-    <section ref={ref} className={className}>
+    <div ref={ref} className={className}>
       {children}
-    </section>
+    </div>
   );
 }
+
+type Member = {
+  initials: string;
+  name: string;
+  role: string;
+  href?: string;
+};
+
+const TEAM: Member[] = [
+  { initials: "TS", name: "Tejveer Singh", role: "Engineering", href: "https://github.com/Tejveercode" },
+  { initials: "AS", name: "Akashdeep Singh", role: "Engineering", href: "https://github.com/Akash-Grewal" },
+  { initials: "AR", name: "Aditya Rangta", role: "Engineering", href: "https://github.com/Aditya-Rangta" },
+  { initials: "DG", name: "Danish Gupta", role: "Engineering" },
+];
+
+/** The three-beat story: the problem, the belief, the proof. */
+const PILLARS = [
+  {
+    kicker: "01 · The problem",
+    title: "Four minutes, forty screens.",
+    body: "One teacher, a lab full of students, and a walk-around check with no room for a second look. Working code got a glance and a zero. If that sounds familiar, you already know why Code Venue exists.",
+  },
+  {
+    kicker: "02 · The belief",
+    title: "A mark should reflect the code.",
+    body: "Not how many seconds a teacher had left. Code Venue doesn't grade for you — we're not interested in replacing a teacher's judgment. We make sure that judgment gets applied properly: the full file, in the teacher's own time, with a record of exactly what happened.",
+  },
+  {
+    kicker: "03 · The proof",
+    title: "Live today, not promised.",
+    body: "Rooms run for real exams right now: join by code, code in the browser, autosave on every keystroke, flagged late submits, one-click zip of every submission. Everything on this page is shipped, not on a roadmap.",
+  },
+];
 
 export default function About() {
   const navigate = useNavigate();
@@ -47,171 +81,103 @@ export default function About() {
       <div className="cv-shell">
         <VenueHeader />
 
-        <main className="about-container">
-          {/* Block 1: Their Problem (Hero) */}
-          <Reveal className="about-section reveal-up">
-            <h1
-              className="glitch-text"
-              data-text="You wrote working code. You still got a zero."
-            >
-              You wrote working code.
-              <br />
-              You still got a zero.
-            </h1>
-            <p className="about-lead">
-              Not because your logic was wrong — because one teacher had four
-              minutes to check forty screens, and yours got a glance instead of a
-              look. If that sounds familiar, you already know why Code Venue
-              exists.
-            </p>
-          </Reveal>
-
-          {/* Block 2: Why We Started */}
-          <Reveal className="about-section split-section reveal-left">
-            <div className="section-content card-glass">
-              <div className="badge">The Origin</div>
-              <h2>Why We Started</h2>
+        <main className="about2">
+          {/* Hero — the story hook, large and unmissable. */}
+          <Reveal className="about2-reveal">
+            <section className="about2-hero">
+              <span className="cv-kicker">About Code Venue</span>
+              <h1>
+                You wrote working code.
+                <br />
+                You still got a <em>zero.</em>
+              </h1>
               <p>
-                We didn't set out to build an exam platform. We sat through one
-                lab test where a teammate — code fully working — walked away
-                with zero marks, because a rushed, walk-around check has no room
-                for a second look.
+                Not because your logic was wrong — because one teacher had four
+                minutes to check forty screens, and yours got a glance instead
+                of a look. Code Venue exists to fix exactly that.
               </p>
-              <p className="highlight-quote">
-                "That's not a grading problem. That's a time problem wearing a
-                grading problem's face."
-              </p>
-            </div>
+            </section>
           </Reveal>
 
-          {/* Block 3: What We Stand For */}
-          <Reveal className="about-section split-section reverse reveal-right">
-            <div className="section-content card-glass border-glow">
-              <div className="badge">The Philosophy</div>
-              <h2>What We Stand For</h2>
+          {/* Three-beat narrative — problem, belief, proof. */}
+          <div className="about2-pillars">
+            {PILLARS.map((p, i) => (
+              <Reveal key={p.kicker} className={`about2-reveal d${i}`}>
+                <section className="cv-card about2-pillar">
+                  <span className="about2-kicker">{p.kicker}</span>
+                  <h2>{p.title}</h2>
+                  <p>{p.body}</p>
+                </section>
+              </Reveal>
+            ))}
+          </div>
+
+          {/* Team — full names, linked where available. */}
+          <Reveal className="about2-reveal">
+            <section className="about2-team">
+              <span className="cv-kicker">The Creators</span>
+              <h2>Not a company. Four students.</h2>
               <p>
-                We believe a mark should reflect what you actually wrote, not
-                how many seconds a teacher had left. Code Venue doesn't grade
-                for you — we're not interested in replacing a teacher's
-                judgment.
+                We sat through the same rushed lab checks everyone else did.
+                We're the students who got the zero — and decided to fix the
+                reason for it.
               </p>
-              <p>
-                We just make sure that judgment gets applied properly: with the
-                full file, in the teacher's own time, with a record of exactly
-                what happened during the exam. Teacher runs the room. We just
-                make sure nothing gets lost in the rush.
-              </p>
-            </div>
-          </Reveal>
 
-          {/* Block 4: Proof */}
-          <Reveal className="about-section text-center reveal-zoom">
-            <h2>This isn't a pitch deck idea.</h2>
-            <p className="about-sub">
-              Code Venue is live. Examiners create rooms and run real exams
-              today — students join with a code, write code in the browser,
-              and every submission autosaves as they type.
-            </p>
-            <p className="about-sub">
-              Every feature on this site — the one-code rooms, the autosave
-              with late-submit flagging, the one-click zip download — is
-              something we've actually built, not something we're promising.
-            </p>
-
-            <div className="tech-stack">
-              <span className="tech-pill float-1">React</span>
-              <span className="tech-pill float-2">TypeScript</span>
-              <span className="tech-pill float-3">Convex</span>
-              <span className="tech-pill float-1">Convex Auth</span>
-              <span className="tech-pill float-2">Realtime</span>
-              <span className="tech-pill float-3">Live Exams</span>
-            </div>
-          </Reveal>
-
-          {/* Bonus: The Team */}
-          <Reveal className="about-section team-section reveal-up">
-            <div className="text-center" style={{ marginBottom: 40 }}>
-              <div className="badge">The Creators</div>
-              <h2>We're not a company.</h2>
-              <p className="about-sub">
-                Built by four BCA students who sat through the same rushed lab
-                checks everyone else did. We're the students who got the zero,
-                and decided to fix the reason for it.
-              </p>
-            </div>
-
-            <div className="team-grid">
-              <a
-                href="https://github.com/Tejveercode"
-                target="_blank"
-                rel="noreferrer"
-                className="team-card hover-glow"
-              >
-                <div className="team-avatar">TS</div>
-                <h3>Tejveer Singh</h3>
-                <span>BCA Student</span>
-              </a>
-              <a
-                href="https://github.com/Akash-Grewal"
-                target="_blank"
-                rel="noreferrer"
-                className="team-card hover-glow"
-              >
-                <div className="team-avatar">AS</div>
-                <h3>Akashdeep Singh</h3>
-                <span>BCA Student</span>
-              </a>
-              <a
-                href="https://github.com/Aditya-Rangta"
-                target="_blank"
-                rel="noreferrer"
-                className="team-card hover-glow"
-              >
-                <div className="team-avatar">A</div>
-                <h3>Aditya Rangta</h3>
-                <span>BCA Student</span>
-              </a>
-              <div className="team-card hover-glow">
-                <div className="team-avatar">D</div>
-                <h3>Danish Gupta</h3>
-                <span>BCA Student</span>
+              <div className="about2-team-grid">
+                {TEAM.map((m) => {
+                  const card = (
+                    <>
+                      <div className="team-avatar">{m.initials}</div>
+                      <div className="about2-member">
+                        <h3>{m.name}</h3>
+                        <span>{m.role}</span>
+                      </div>
+                      {m.href && (
+                        <span className="about2-member-link">
+                          <Github size={13} /> GitHub
+                        </span>
+                      )}
+                    </>
+                  );
+                  return m.href ? (
+                    <a
+                      key={m.name}
+                      href={m.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="cv-card cv-card-hover about2-member-card"
+                    >
+                      {card}
+                    </a>
+                  ) : (
+                    <div key={m.name} className="cv-card about2-member-card">
+                      {card}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            </section>
           </Reveal>
 
-          {/* Block 5: Clear Next Step */}
-          <Reveal className="about-section text-center cta-section reveal-zoom">
-            <h2 style={{ marginBottom: 30 }}>Choose Your Venue</h2>
-
-            <div className="cta-grid">
-              <div className="cta-card examiner-cta">
-                <h3>For Teachers</h3>
-                <p>
-                  Create a room and see what a monitored, unhurried grading
-                  process actually feels like.
-                </p>
+          {/* Clear next step. */}
+          <Reveal className="about2-reveal">
+            <section className="cv-card about2-cta">
+              <h2>Choose your venue.</h2>
+              <div className="about2-cta-row">
                 <button
-                  className="terminal-btn"
+                  className="cv-btn cv-btn-primary"
                   onClick={() => navigate("/examiner-portal")}
                 >
-                  <span className="prompt">$</span> examiner-portal --enter
+                  Run an exam <ArrowRight size={15} />
                 </button>
-              </div>
-
-              <div className="cta-card student-cta">
-                <h3>For Students</h3>
-                <p>
-                  The next test you sit shouldn't come down to how fast someone
-                  can glance at your screen.
-                </p>
                 <button
-                  className="terminal-btn"
+                  className="cv-btn cv-btn-secondary"
                   onClick={() => navigate("/student-portal")}
                 >
-                  <span className="prompt">$</span> student-portal --enter
+                  Join an exam
                 </button>
               </div>
-            </div>
+            </section>
           </Reveal>
         </main>
 
