@@ -393,6 +393,43 @@ export const endRoom = mutation({
   },
 });
 
+/**
+ * Permanently delete a room and ALL its data: every submission, every student
+ * row, then the room itself. Owner-only — unlike endRoom, there is no way back,
+ * which the confirming UI states explicitly.
+ */
+export const deleteRoom = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const examiner = await requireExaminer(ctx);
+    const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
+    if (!room) throw new Error("Room not found");
+
+    const submissions = await ctx.db
+      .query("submissions")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const sub of submissions) {
+      await ctx.db.delete(sub._id);
+    }
+
+    const students = await ctx.db
+      .query("students")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const student of students) {
+      await ctx.db.delete(student._id);
+    }
+
+    await ctx.db.delete(args.roomId);
+    return {
+      ok: true as const,
+      deletedSubmissions: submissions.length,
+      deletedStudents: students.length,
+    };
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Student join
 // ---------------------------------------------------------------------------
@@ -654,6 +691,9 @@ export const getRoomSubmissions = query({
         const sub = byStudent.get(student._id);
         return {
           studentId: student._id,
+          // clientId doubles as the short-ID suffix for download filenames
+          // ({name}_{last6}.txt). Owner-only query, so exposing it here is safe.
+          clientId: student.clientId,
           name: student.name,
           submission: sub
             ? {

@@ -20,6 +20,7 @@ import {
   Pencil,
   Plus,
   Square,
+  Trash2,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -82,6 +83,7 @@ export default function ExaminerPortal() {
   const createRoom = useMutation(api.exams.createRoom);
   const updateRoom = useMutation(api.exams.updateRoom);
   const endRoomMutation = useMutation(api.exams.endRoom);
+  const deleteRoomMutation = useMutation(api.exams.deleteRoom);
 
   // `examiner === null` means "authed user with no examiner row yet" — a
   // first-ever visit. `undefined` means the query is still loading.
@@ -126,6 +128,10 @@ export default function ExaminerPortal() {
   // End-exam confirmation state
   const [endRoom, setEndRoom] = useState<Room | null>(null);
   const [ending, setEnding] = useState(false);
+
+  // Delete-room confirmation state (permanent, data included)
+  const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Copied feedback per room
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -283,6 +289,24 @@ export default function ExaminerPortal() {
       setEnding(false);
     }
   };
+
+  const confirmDelete = async () => {
+    if (!deleteRoom) return;
+    setDeleting(true);
+    try {
+      await deleteRoomMutation({ roomId: deleteRoom._id });
+      // listMyRooms re-subscribes; the room disappears from the dashboard
+      // immediately after this resolves.
+      setDeleteRoom(null);
+    } catch {
+      // keep the dialog open on failure
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Stable handler passed into every accordion row.
+  const openDelete = useCallback((room: Room) => setDeleteRoom(room), []);
 
   const copyCode = useCallback(async (room: Room) => {
     try {
@@ -482,6 +506,12 @@ export default function ExaminerPortal() {
                             </button>
                           </>
                         )}
+                        <button
+                          className="cv-btn cv-btn-danger cv-btn-sm"
+                          onClick={() => openDelete(room)}
+                        >
+                          <Trash2 size={14} /> Delete Room
+                        </button>
                       </div>
                     </AccordionRow>
                   );
@@ -584,6 +614,45 @@ export default function ExaminerPortal() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete room confirmation — permanent, includes all student data */}
+      <Modal
+        open={deleteRoom !== null}
+        onClose={() => setDeleteRoom(null)}
+        title="Delete this room?"
+        footer={
+          <>
+            <button
+              className="cv-btn cv-btn-secondary"
+              onClick={() => setDeleteRoom(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+            <button
+              className="cv-btn cv-btn-danger cv-end-confirm"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" /> Deleting…
+                </>
+              ) : (
+                "Delete Permanently"
+              )}
+            </button>
+          </>
+        }
+      >
+        {deleteRoom && (
+          <p className="cv-modal-sub" style={{ marginBottom: 0 }}>
+            Delete '{deleteRoom.name}'? This permanently removes the room, its
+            question, and all {counts?.[deleteRoom._id]?.submitted ?? 0} student
+            submissions. This cannot be undone.
+          </p>
+        )}
       </Modal>
 
       {/* End exam confirmation */}

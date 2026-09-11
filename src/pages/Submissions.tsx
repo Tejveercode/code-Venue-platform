@@ -4,14 +4,36 @@ import {
   CodePill,
   CodeVenuePage,
   LivePill,
+  Modal,
   VenueHeader,
 } from "@/components/venue/ui";
 import { format } from "date-fns";
-import { ArrowLeft, FileCode2 } from "lucide-react";
+import { ArrowLeft, Download, FileCode2, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  defaultZipName,
+  downloadBlob,
+  loadZipLib,
+  sanitizeFilename,
+  submissionFileName,
+} from "@/lib/submissionFiles";
+
+type SubmissionInfo = {
+  code: string;
+  isFinal: boolean;
+  submittedAt: number | null;
+  updatedAt: number;
+};
+
+type SubRowData = {
+  studentId: string;
+  clientId: string;
+  name: string;
+  submission: SubmissionInfo | null;
+};
 
 const formatSubTime = (isFinal: boolean, submittedAt: number | null, updatedAt: number) =>
   isFinal
@@ -25,22 +47,37 @@ const SubRow = memo(function SubRow({
   name,
   timeLabel,
   selected,
+  downloadable,
   onSelect,
+  onDownload,
 }: {
   studentId: string;
   name: string;
   timeLabel: string;
   selected: boolean;
+  downloadable: boolean;
   onSelect: (id: string) => void;
+  onDownload: (id: string) => void;
 }) {
   return (
-    <button
-      className={"cv-sub-row" + (selected ? " selected" : "")}
-      onClick={() => onSelect(studentId)}
-    >
-      <span className="cv-sub-name">{name}</span>
-      <span className="cv-sub-time">{timeLabel}</span>
-    </button>
+    // Wrapper div (not a <button>) so the download action can live beside the
+    // select area without nesting interactive elements.
+    <div className={"cv-sub-row" + (selected ? " selected" : "")}>
+      <button className="cv-sub-main" onClick={() => onSelect(studentId)}>
+        <span className="cv-sub-name">{name}</span>
+        <span className="cv-sub-time">{timeLabel}</span>
+      </button>
+      {downloadable && (
+        <button
+          className="cv-sub-download"
+          title={`Download ${name}'s code`}
+          aria-label={`Download ${name}'s code`}
+          onClick={() => onDownload(studentId)}
+        >
+          <Download size={14} />
+        </button>
+      )}
+    </div>
   );
 });
 
@@ -78,20 +115,16 @@ export default function Submissions() {
     | {
         error?: string;
         room?: import("@/convex/_generated/dataModel").Doc<"rooms">;
-        rows?: Array<{
-          studentId: string;
-          name: string;
-          submission: {
-            code: string;
-            isFinal: boolean;
-            submittedAt: number | null;
-            updatedAt: number;
-          } | null;
-        }>;
+        rows?: SubRowData[];
       }
     | undefined;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Download All (ZIP) modal state
+  const [zipOpen, setZipOpen] = useState(false);
+  const [zipName, setZipName] = useState("");
+  const [zipping, setZipping] = useState(false);
 
   useEffect(() => {
     document.title = "Submissions — Code Venue";
@@ -107,12 +140,71 @@ export default function Submissions() {
   const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
   const rows = data?.rows ?? [];
+
+  // Only final submissions are downloadable — drafts are excluded from both
+  // the zip and the individual download buttons.
+  const finalRows = useMemo(
+    () => rows.filter((r) => r.submission?.isFinal === true),
+    [rows],
+  );
+
   const selected = useMemo(
     () => rows.find((r) => r.studentId === selectedId) ?? null,
     [rows, selectedId],
   );
 
+  const safeZipBase = useMemo(
+    () => sanitizeFilename(zipName) || "submissions",
+    [zipName],
+  );
+
   const room = data?.room;
+
+  const openZipModal = useCallback(() => {
+    if (!room) return;
+    // Fresh default each time the modal opens (room name, sanitized).
+    setZipName(defaultZipName(room.name));
+    setZipOpen(true);
+  }, [room]);
+
+  const confirmZip = useCallback(async () => {
+    if (finalRows.length === 0) return;
+    setZipping(true);
+    try {
+      // JSZip is lazy-loaded here so it never enters the initial bundle.
+      const { default: JSZip } = await loadZipLib();
+      const zip = new JSZip();
+      const used = new Set<string>();
+      for (const r of finalRows) {
+        let fname = submissionFileName(r.name, r.clientId);
+        // Belt-and-braces against duplicate names inside the archive.
+        let n = 2;
+        while (used.has(fname)) fname = fname.replace(/\.txt$/, `-${n++}.txt`);
+        used.add(fname);
+        zip.file(fname, r.submission?.code ?? "");
+      }
+      const blob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+      });
+      downloadBlob(blob, `${safeZipBase}.zip`);
+      setZipOpen(false);
+    } finally {
+      setZipping(false);
+    }
+  }, [finalRows, safeZipBase]);
+
+  const downloadOne = useCallback(
+    (studentId: string) => {
+      const r = rows.find((x) => x.studentId === studentId);
+      if (!r?.submission?.isFinal) return;
+      downloadBlob(
+        new Blob([r.submission.code], { type: "text/plain;charset=utf-8" }),
+        submissionFileName(r.name, r.clientId),
+      );
+    },
+    [rows],
+  );
 
   return (
     <CodeVenuePage>
@@ -136,6 +228,20 @@ export default function Submissions() {
                   : "Loading room…"}
               </p>
             </div>
+            {data !== undefined && !data.error && rows.length > 0 && (
+              <button
+                className="cv-btn cv-btn-secondary cv-btn-sm"
+                onClick={openZipModal}
+                disabled={finalRows.length === 0}
+                title={
+                  finalRows.length === 0
+                    ? "No final submissions yet — drafts are not downloadable."
+                    : undefined
+                }
+              >
+                <Download size={14} /> Download All (ZIP)
+              </button>
+            )}
           </div>
 
           {data === undefined ? (
@@ -161,7 +267,9 @@ export default function Submissions() {
                       row.submission!.updatedAt,
                     )}
                     selected={row.studentId === selectedId}
+                    downloadable={row.submission?.isFinal === true}
                     onSelect={handleSelect}
+                    onDownload={downloadOne}
                   />
                 ))}
               </div>
@@ -185,6 +293,63 @@ export default function Submissions() {
           )}
         </main>
       </div>
+
+      {/* Download All (ZIP) — editable filename before building the archive */}
+      <Modal
+        open={zipOpen}
+        onClose={() => setZipOpen(false)}
+        title="Download all submissions"
+        subtitle={
+          finalRows.length === 1
+            ? "1 final submission will be included. Drafts are excluded."
+            : `${finalRows.length} final submissions will be included. Drafts are excluded.`
+        }
+        footer={
+          <>
+            <button
+              className="cv-btn cv-btn-secondary"
+              onClick={() => setZipOpen(false)}
+              disabled={zipping}
+            >
+              Cancel
+            </button>
+            <button
+              className="cv-btn cv-btn-primary"
+              onClick={() => void confirmZip()}
+              disabled={zipping}
+            >
+              {zipping ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" /> Preparing…
+                </>
+              ) : (
+                <>
+                  <Download size={15} /> Download ZIP
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="cv-field">
+          <label className="cv-label" htmlFor="zip-name">
+            Zip file name
+          </label>
+          <input
+            id="zip-name"
+            className="cv-input"
+            value={zipName}
+            onChange={(e) => setZipName(e.target.value)}
+            placeholder="submissions"
+            disabled={zipping}
+            autoFocus
+          />
+          <p className="cv-modal-sub" style={{ marginTop: 8, marginBottom: 0 }}>
+            Saved as <strong>{safeZipBase}.zip</strong> — one file per student
+            ({`{name}_{last 6 of ID}`}.txt).
+          </p>
+        </div>
+      </Modal>
     </CodeVenuePage>
   );
 }
