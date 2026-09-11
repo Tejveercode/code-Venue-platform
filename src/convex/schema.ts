@@ -85,6 +85,14 @@ const schema = defineSchema(
     })
       .index("by_student", ["studentId"])
       .index("by_room", ["roomId"]),
+
+    // Fixed-window rate-limit counters. One row per (bucket, key) per window;
+    // stale rows are overwritten in place when their window has passed.
+    rateLimits: defineTable({
+      key: v.string(), // e.g. "join:<clientId>" — caller-defined bucket key
+      windowStart: v.number(), // ms timestamp of the current window
+      count: v.number(),
+    }).index("by_key", ["key"]),
   },
   {
     schemaValidation: false,

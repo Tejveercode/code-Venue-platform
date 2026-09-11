@@ -20,6 +20,10 @@ const MAX_ROOM_PROMPT = 10_000;
 const MAX_SUBMISSION_CODE = 64_000; // ~64KB of code per student
 const AUTOSAVE_MIN_INTERVAL_MS = 1_000; // damp spammy autosave writes
 
+// Rate limits (fixed-window counters in the rateLimits table)
+const JOIN_LIMIT_PER_CLIENT = 5; // per 60s, per client session
+const JOIN_LIMIT_WINDOW_MS = 60_000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -54,6 +58,39 @@ async function requireExaminer(ctx: MutationCtx) {
   const examiner = await getCurrentExaminer(ctx);
   if (!examiner) throw new Error("Only examiners can do this");
   return examiner;
+}
+
+/**
+ * Simple fixed-window rate limiter backed by the rateLimits table.
+ * Returns false when the key's budget for the current window is exhausted.
+ * Best-effort only: a failed counter write never blocks the caller.
+ */
+async function checkRateLimit(
+  ctx: MutationCtx,
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<boolean> {
+  try {
+    const now = Date.now();
+    const row = await ctx.db
+      .query("rateLimits")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (!row || now - row.windowStart >= windowMs) {
+      if (row) {
+        await ctx.db.patch(row._id, { windowStart: now, count: 1 });
+      } else {
+        await ctx.db.insert("rateLimits", { key, windowStart: now, count: 1 });
+      }
+      return true;
+    }
+    if (row.count >= limit) return false;
+    await ctx.db.patch(row._id, { count: row.count + 1 });
+    return true;
+  } catch {
+    return true; // never let limiter errors break the real flow
+  }
 }
 
 /**
@@ -457,6 +494,23 @@ export const joinRoom = mutation({
     existingClientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Rate limit: 5 join attempts/min per client session. Cheap check runs
+    // before any DB lookups so scripted spam dies at the gate. Legit refresh
+    // flows (1–2 attempts) never hit this.
+    const bucketKey = `join:${args.existingClientId ?? "new"}`;
+    if (
+      !(await checkRateLimit(
+        ctx,
+        bucketKey,
+        JOIN_LIMIT_PER_CLIENT,
+        JOIN_LIMIT_WINDOW_MS,
+      ))
+    ) {
+      return {
+        error: "Too many join attempts. Wait a minute and try again.",
+      };
+    }
+
     // Validation / spam damping: reject malformed input with one cheap check
     // before it ever hits the database.
     const code = args.code.trim().toUpperCase();
