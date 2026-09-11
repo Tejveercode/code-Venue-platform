@@ -67,9 +67,12 @@ const schema = defineSchema(
     // studentUid is a short public identifier (e.g. "S-7F3K2Q") shown to the
     // student and used in download filenames so same-named students never
     // collide — it is NOT a secret, unlike clientId.
+    // regNo is the student's own institutional ID (e.g. "24BCA10210"), typed
+    // at join. When present it takes precedence in download filenames.
     students: defineTable({
       clientId: v.string(), // unique, secret session token
       studentUid: v.string(), // unique, public short identifier
+      regNo: v.optional(v.string()), // student-entered institutional ID
       name: v.string(),
       joinedAt: v.number(),
       roomId: v.id("rooms"),

@@ -514,6 +514,7 @@ export const joinRoom = mutation({
   args: {
     code: v.string(),
     name: v.string(),
+    regNo: v.optional(v.string()),
     existingClientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -550,6 +551,14 @@ export const joinRoom = mutation({
     }
     if (args.existingClientId && args.existingClientId.length > 128) {
       return { error: "Invalid session. Please join again." };
+    }
+    // Optional institutional ID (e.g. "24BCA10210") — validated loosely since
+    // formats vary by institution; only length and charset are enforced.
+    const regNo = args.regNo?.trim().toUpperCase();
+    if (regNo && !/^[A-Z0-9-]{3,24}$/.test(regNo)) {
+      return {
+        error: "Student ID should be 3–24 letters/numbers (e.g. 24BCA10210).",
+      };
     }
 
     const room = await ctx.db
@@ -592,10 +601,16 @@ export const joinRoom = mutation({
         )
         .unique();
       if (existing && existing.roomId === room._id) {
+        // Adopt a newly provided regNo on rejoin (e.g. they added it after a
+        // first quick join).
+        if (regNo && existing.regNo !== regNo) {
+          await ctx.db.patch(existing._id, { regNo });
+        }
         return {
           clientId: existing.clientId,
           studentId: existing._id,
           studentUid: existing.studentUid,
+          regNo: regNo ?? existing.regNo ?? null,
           room,
         };
       }
@@ -606,11 +621,12 @@ export const joinRoom = mutation({
     const studentId = await ctx.db.insert("students", {
       clientId,
       studentUid,
+      ...(regNo ? { regNo } : {}),
       name,
       joinedAt: Date.now(),
       roomId: room._id,
     });
-    return { clientId, studentId, studentUid, room };
+    return { clientId, studentId, studentUid, regNo: regNo ?? null, room };
   },
 });
 
@@ -743,6 +759,7 @@ export const getMySubmission = query({
     return {
       studentName: student.name,
       studentUid: student.studentUid,
+      regNo: student.regNo ?? null,
       submission: submission
         ? {
             code: submission.code,
@@ -777,9 +794,10 @@ export const getRoomSubmissions = query({
         return {
           studentId: student._id,
           // clientId doubles as the short-ID suffix for download filenames
-          // ({name}_{UID}.txt). Owner-only query, so exposing it here is safe.
+          // ({name}_{ID}.txt). Owner-only query, so exposing it here is safe.
           clientId: student.clientId,
           studentUid: student.studentUid,
+          regNo: student.regNo ?? null,
           name: student.name,
           submission: sub
             ? {

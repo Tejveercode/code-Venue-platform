@@ -108,22 +108,23 @@ export default function About() {
           <Reveal className="about-section text-center reveal-zoom">
             <h2>This isn't a pitch deck idea.</h2>
             <p className="about-sub">
-              The landing page and examiner portal are live. The database and
-              backend architecture are built and in active development.
+              Code Venue is live. Examiners create rooms and run real exams
+              today — students join with a code, write code in the browser,
+              and every submission autosaves as they type.
             </p>
             <p className="about-sub">
-              Every feature on this site — the 6-digit room codes, the
-              tab-switch monitoring, the one-click zip download — is something
-              we've actually built toward, not something we're promising.
+              Every feature on this site — the one-code rooms, the autosave
+              with late-submit flagging, the one-click zip download — is
+              something we've actually built, not something we're promising.
             </p>
 
             <div className="tech-stack">
-              <span className="tech-pill float-1">Next.js</span>
-              <span className="tech-pill float-2">Node.js</span>
-              <span className="tech-pill float-3">PostgreSQL</span>
-              <span className="tech-pill float-1">Redis</span>
-              <span className="tech-pill float-2">Socket.io</span>
-              <span className="tech-pill float-3">Judge0</span>
+              <span className="tech-pill float-1">React</span>
+              <span className="tech-pill float-2">TypeScript</span>
+              <span className="tech-pill float-3">Convex</span>
+              <span className="tech-pill float-1">Convex Auth</span>
+              <span className="tech-pill float-2">Realtime</span>
+              <span className="tech-pill float-3">Live Exams</span>
             </div>
           </Reveal>
 

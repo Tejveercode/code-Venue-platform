@@ -9,6 +9,7 @@ export function getStudentIdentity(roomCode: string): {
   clientId: string | null;
   name: string | null;
   uid: string | null;
+  regNo: string | null;
 } {
   try {
     const key = roomCode.trim().toUpperCase();
@@ -16,9 +17,10 @@ export function getStudentIdentity(roomCode: string): {
       clientId: localStorage.getItem(`cv:clientId:${key}`),
       name: localStorage.getItem(`cv:name:${key}`),
       uid: localStorage.getItem(`cv:uid:${key}`),
+      regNo: localStorage.getItem(`cv:regNo:${key}`),
     };
   } catch {
-    return { clientId: null, name: null, uid: null };
+    return { clientId: null, name: null, uid: null, regNo: null };
   }
 }
 
@@ -27,12 +29,14 @@ export function setStudentIdentity(
   clientId: string,
   name: string,
   uid: string,
+  regNo: string,
 ) {
   try {
     const key = roomCode.trim().toUpperCase();
     localStorage.setItem(`cv:clientId:${key}`, clientId);
     localStorage.setItem(`cv:name:${key}`, name);
     localStorage.setItem(`cv:uid:${key}`, uid);
+    if (regNo) localStorage.setItem(`cv:regNo:${key}`, regNo);
   } catch {
     // storage unavailable — session-only identity
   }
@@ -52,6 +56,7 @@ export default function StudentPortal() {
   const lookup = useMutation(api.exams.joinRoom);
 
   const [name, setName] = useState("");
+  const [regNo, setRegNo] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
@@ -70,17 +75,24 @@ export default function StudentPortal() {
 
     setJoining(true);
     try {
-      const { clientId } = getStudentIdentity(trimmedCode);
+      const { clientId, regNo: savedRegNo } = getStudentIdentity(trimmedCode);
       const result = await lookup({
         code: trimmedCode,
         name: trimmedName,
+        regNo: (regNo.trim() || savedRegNo || undefined)?.toUpperCase(),
         existingClientId: clientId ?? undefined,
       });
       if (typeof result.clientId !== "string") {
         setError(result.error ?? "Could not join the room.");
         return;
       }
-      setStudentIdentity(trimmedCode, result.clientId, trimmedName, result.studentUid);
+      setStudentIdentity(
+        trimmedCode,
+        result.clientId,
+        trimmedName,
+        result.studentUid,
+        result.regNo ?? regNo.trim().toUpperCase(),
+      );
       navigate(`/exam/${encodeURIComponent(trimmedCode)}`);
     } catch {
       setError("Could not join the room. Please try again.");
@@ -121,6 +133,25 @@ export default function StudentPortal() {
                   autoComplete="name"
                   disabled={joining}
                 />
+              </div>
+              <div className="cv-field">
+                <label className="cv-label" htmlFor="student-regno">
+                  Student ID <span>· optional</span>
+                </label>
+                <input
+                  id="student-regno"
+                  className="cv-input"
+                  value={regNo}
+                  onChange={(e) => setRegNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. 24BCA10210"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={joining}
+                />
+                <p className="cv-label" style={{ marginTop: 6, fontWeight: 400, fontSize: 12 }}>
+                  Your downloaded file will be named with it (name_ID.txt).
+                </p>
               </div>
               <div className="cv-field">
                 <label className="cv-label" htmlFor="student-code">

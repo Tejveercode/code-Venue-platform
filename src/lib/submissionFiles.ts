@@ -2,12 +2,13 @@
  * Submission download helpers (examiner side).
  *
  * Naming convention shared by the single-file and zip flows:
- *   "{student name}_{studentUid}.txt"  e.g. "Akash_S-7F3K2Q.txt"
- * The UID is minted per student by the server at join time and is unique,
- * so two students with the same name never collide inside a zip — and the
- * examiner can match a file to a student via the UID shown on the student's
- * exam screen. ".txt" is used because submission code is stored as plain
- * text and no language detection is attempted.
+ *   "{student name}_{ID}.txt"  e.g. "Akash_24BCA10210.txt"
+ * The ID is the student's own institutional ID (regNo) when they entered one,
+ * otherwise the server-minted unique UID ("S-7F3K2Q"). Either way it is
+ * unique per student, so same-named students never collide inside a zip —
+ * and the examiner can match a file to a student via the ID pill shown on
+ * the student's exam screen. ".txt" is used because submission code is
+ * stored as plain text and no language detection is attempted.
  */
 
 /**
@@ -26,13 +27,19 @@ export function sanitizeFilename(name: string): string {
     .slice(0, 80); // keep filenames reasonable on every OS
 }
 
-/** "{name}_{UID}.txt" — the canonical per-student filename. */
+/**
+ * "{name}_{ID}.txt" — the canonical per-student filename. `regNo` (the
+ * student's own institutional ID) wins when present; `studentUid` is the
+ * always-present fallback. Both are unique.
+ */
 export function submissionFileName(
   studentName: string,
   studentUid: string,
+  regNo?: string | null,
 ): string {
   const base = sanitizeFilename(studentName) || "student";
-  return `${base}_${studentUid}.txt`;
+  const id = sanitizeFilename(regNo || studentUid) || studentUid;
+  return `${base}_${id}.txt`;
 }
 
 /**

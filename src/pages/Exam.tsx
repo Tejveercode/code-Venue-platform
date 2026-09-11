@@ -105,10 +105,10 @@ export default function Exam() {
     () => getStudentIdentity(code).clientId,
   );
 
-  // Public, unique identifier shown to the student (e.g. "S-7F3K2Q") so they
-  // can identify their file in the examiner's downloads. Minted by the server
-  // at join time; re-minted on rejoin (rejoin only happens when identity is
-  // lost, so at most one UID per lost-session flow).
+  // Public, unique identifier shown to the student so they can identify
+  // their file in the examiner's downloads. Prefers the student's own
+  // institutional ID (e.g. 24BCA10210); falls back to the server-minted
+  // UID (e.g. S-7F3K2Q) when no ID was entered.
   const [studentUid, setStudentUid] = useState<string | null>(null);
 
   const roomState = useQuery(api.exams.getExamRoomState, code ? { code } : "skip");
@@ -119,6 +119,7 @@ export default function Exam() {
     | {
         studentName: string;
         studentUid: string;
+        regNo: string | null;
         submission: {
           code: string;
           isFinal: boolean;
@@ -154,13 +155,14 @@ export default function Exam() {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
   }, [roomState?.name]);
 
-  // Adopt the server-minted UID as soon as the submission query provides it.
+  // Adopt the identifier (own ID if entered, else the minted UID) once the
+  // submission query provides it.
   useEffect(() => {
     if (mySub?.studentUid) {
-      setStudentUid(mySub.studentUid);
+      setStudentUid(mySub.regNo ?? mySub.studentUid);
       if (clientId) persistStudentUid(code, mySub.studentUid);
     }
-  }, [mySub?.studentUid, clientId, code]);
+  }, [mySub?.studentUid, mySub?.regNo, clientId, code]);
 
   // Restore the autosaved draft exactly once, from the DB — not the tab.
   useEffect(() => {
@@ -404,9 +406,9 @@ export default function Exam() {
               {studentUid && (
                 <span
                   className="cv-pill cv-pill-code"
-                  title="Your unique ID — your examiner's downloaded file will be named with it"
+                  title="Your ID — your examiner's downloaded file is named with it"
                 >
-                  UID: {studentUid}
+                  ID: {studentUid}
                 </span>
               )}
             </div>
@@ -535,22 +537,21 @@ export default function Exam() {
     setRejoining(true);
     setRejoinError(null);
     try {
+      const { regNo: savedRegNo } = getStudentIdentity(code);
       const res: {
         error?: string;
         clientId?: string;
         studentUid?: string;
-      } = await join({ code, name });
+        regNo?: string | null;
+      } = await join({ code, name, regNo: savedRegNo ?? undefined });
       if (res.error) {
         setRejoinError(res.error);
         return;
       }
       if (res.clientId) {
-        if (res.studentUid) {
-          setStudentIdentity(code, res.clientId, name, res.studentUid);
-          setStudentUid(res.studentUid);
-        } else {
-          setStudentIdentity(code, res.clientId, name, "");
-        }
+        const uid = res.regNo ?? res.studentUid ?? "";
+        setStudentIdentity(code, res.clientId, name, res.studentUid ?? "", res.regNo ?? savedRegNo ?? "");
+        setStudentUid(uid || null);
         setClientId(res.clientId);
       }
     } catch {

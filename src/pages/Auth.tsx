@@ -25,6 +25,48 @@ type Mode = "signin" | "signup";
  */
 export const PENDING_NAME_KEY = "cv_pending_examiner_name";
 
+/**
+ * sessionStorage state of an in-progress OTP sign-in. Mobile browsers reload
+ * the page when it is backgrounded (switching to the mail app to fetch the
+ * code) — React state dies with the page. Persisting the flow means the
+ * reload lands back on the code step with the email filled in, instead of
+ * restarting at the email form and firing a SECOND OTP (the loop).
+ */
+type PendingFlow = { email: string; mode: Mode; at: number };
+const PENDING_FLOW_KEY = "cv_pending_otp_flow";
+const PENDING_FLOW_TTL_MS = 15 * 60_000; // OTP validity window
+
+function loadPendingFlow(): PendingFlow | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_FLOW_KEY);
+    if (!raw) return null;
+    const flow = JSON.parse(raw) as PendingFlow;
+    if (!flow?.email || Date.now() - flow.at > PENDING_FLOW_TTL_MS) {
+      sessionStorage.removeItem(PENDING_FLOW_KEY);
+      return null;
+    }
+    return flow;
+  } catch {
+    return null;
+  }
+}
+
+function savePendingFlow(flow: PendingFlow) {
+  try {
+    sessionStorage.setItem(PENDING_FLOW_KEY, JSON.stringify(flow));
+  } catch {
+    // storage unavailable — flow simply won't survive a reload
+  }
+}
+
+function clearPendingFlow() {
+  try {
+    sessionStorage.removeItem(PENDING_FLOW_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function AuthCard() {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
@@ -40,6 +82,27 @@ function AuthCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  // Resume an interrupted OTP flow after a page reload (mobile mail-check).
+  // Runs once on mount: if a fresh flow exists, jump straight to the code
+  // step with the email restored — no second OTP is sent. For signups the
+  // typed name is restored too (stashed before the email step).
+  useEffect(() => {
+    const flow = loadPendingFlow();
+    if (flow) {
+      setEmail(flow.email);
+      setMode(flow.mode);
+      setStep("code");
+      if (flow.mode === "signup") {
+        try {
+          const pending = sessionStorage.getItem(PENDING_NAME_KEY);
+          if (pending) setName(pending);
+        } catch {
+          // ignore — the portal's ensureExaminer fallback still covers the name
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // `verifying` guards the window between the email step confirming and the
@@ -68,6 +131,7 @@ function AuthCard() {
       const formData = new FormData();
       formData.set("email", email);
       await signIn("email-otp", formData);
+      savePendingFlow({ email, mode, at: Date.now() });
       setVerifying(true);
       setStep("code");
     } catch (err) {
@@ -94,6 +158,7 @@ function AuthCard() {
       }
       await signIn("email-otp", formData);
 
+      clearPendingFlow();
       setVerifying(false);
 
       // Persist the typed name onto the examiner record right after the
@@ -143,6 +208,7 @@ function AuthCard() {
               setMode("signin");
               setStep("email");
               setError(null);
+              clearPendingFlow();
             }}
           >
             Sign In
@@ -156,6 +222,7 @@ function AuthCard() {
               setMode("signup");
               setStep("email");
               setError(null);
+              clearPendingFlow();
             }}
           >
             Sign Up
@@ -244,7 +311,13 @@ function AuthCard() {
             </button>
             <p className="cv-form-footer">
               Didn't get it?{" "}
-              <button type="button" onClick={() => setStep("email")}>
+              <button
+                type="button"
+                onClick={() => {
+                  clearPendingFlow();
+                  setStep("email");
+                }}
+              >
                 Try again
               </button>
             </p>
