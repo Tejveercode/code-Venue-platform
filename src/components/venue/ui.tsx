@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { ChevronDown, Equal, X } from "lucide-react";
-import { VortexCanvas } from "./VortexCanvas";
+import { VoidFieldCanvas } from "./VoidFieldCanvas";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 export function CodeVenuePage({ children }: { children: ReactNode }) {
   return (
     <div data-code-venue-page className="min-h-screen flex flex-col">
-      <VortexCanvas />
+      <VoidFieldCanvas />
       {children}
     </div>
   );
