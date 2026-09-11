@@ -1,14 +1,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { Github, ArrowRight } from "lucide-react";
+import { ArrowUpRight, ArrowRight } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
 
 /**
  * Reveal-on-scroll: adds .is-visible when 15% of the element enters the
- * viewport (threshold 0.15, rootMargin "0px 0px -50px 0px") — same behavior
- * the page has always had, kept for the redesign.
+ * viewport (threshold 0.15, rootMargin "0px 0px -50px 0px"). Transform and
+ * opacity only.
  */
-function Reveal({ className, children }: { className: string; children: ReactNode }) {
+function Reveal({ className, children }: { className?: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -30,43 +30,37 @@ function Reveal({ className, children }: { className: string; children: ReactNod
   }, []);
 
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} className={"ab-reveal" + (className ? ` ${className}` : "")}>
       {children}
     </div>
   );
 }
 
-type Member = {
-  initials: string;
-  name: string;
-  role: string;
-  href?: string;
-};
-
-const TEAM: Member[] = [
-  { initials: "TS", name: "Tejveer Singh", role: "Engineering", href: "https://github.com/Tejveercode" },
-  { initials: "AS", name: "Akashdeep Singh", role: "Engineering", href: "https://github.com/Akash-Grewal" },
-  { initials: "AR", name: "Aditya Rangta", role: "Engineering", href: "https://github.com/Aditya-Rangta" },
-  { initials: "DG", name: "Danish Gupta", role: "Engineering" },
-];
-
-/** The three-beat story: the problem, the belief, the proof. */
 const PILLARS = [
   {
-    kicker: "01 · The problem",
+    n: "01",
     title: "Four minutes, forty screens.",
-    body: "One teacher, a lab full of students, and a walk-around check with no room for a second look. Working code got a glance and a zero. If that sounds familiar, you already know why Code Venue exists.",
+    body: "One teacher, a lab full of students, and a walk-around check with no room for a second look. Working code got a glance — and a glance is where marks go to die. If that sounds familiar, you already know why Code Venue exists.",
   },
   {
-    kicker: "02 · The belief",
+    n: "02",
     title: "A mark should reflect the code.",
-    body: "Not how many seconds a teacher had left. Code Venue doesn't grade for you — we're not interested in replacing a teacher's judgment. We make sure that judgment gets applied properly: the full file, in the teacher's own time, with a record of exactly what happened.",
+    body: "Not how many seconds a teacher had left. Code Venue doesn't grade for you — we're not interested in replacing a teacher's judgment. We make sure the judgment lands properly: the full file, read in the teacher's own time, with a record of exactly what happened during the exam.",
   },
   {
-    kicker: "03 · The proof",
+    n: "03",
     title: "Live today, not promised.",
-    body: "Rooms run for real exams right now: join by code, code in the browser, autosave on every keystroke, flagged late submits, one-click zip of every submission. Everything on this page is shipped, not on a roadmap.",
+    body: "Rooms run for real exams right now. Join by code, write in the browser, autosave on every keystroke, late submits flagged automatically, every submission zipped with one click when the exam ends. Everything on this page is shipped — nothing is on a roadmap.",
   },
+];
+
+type Member = { initials: string; name: string; role: string; href?: string };
+
+const TEAM: Member[] = [
+  { initials: "TS", name: "Tejveer Singh", role: "Co-founder · Engineering", href: "https://github.com/Tejveercode" },
+  { initials: "AS", name: "Akashdeep Singh", role: "Co-founder · Engineering", href: "https://github.com/Akash-Grewal" },
+  { initials: "AR", name: "Aditya Rangta", role: "Engineering", href: "https://github.com/Aditya-Rangta" },
+  { initials: "DG", name: "Danish Gupta", role: "Engineering" },
 ];
 
 export default function About() {
@@ -81,97 +75,110 @@ export default function About() {
       <div className="cv-shell">
         <VenueHeader />
 
-        <main className="about2">
-          {/* Hero — the story hook, large and unmissable. */}
-          <Reveal className="about2-reveal">
-            <section className="about2-hero">
-              <span className="cv-kicker">About Code Venue</span>
+        <main className="ab">
+          {/* ---- Hero: the hook, set like an editorial opener ---- */}
+          <Reveal>
+            <header className="ab-hero">
+              <p className="ab-eyebrow">About Code Venue</p>
               <h1>
                 You wrote working code.
                 <br />
                 You still got a <em>zero.</em>
               </h1>
-              <p>
+              <p className="ab-lede">
                 Not because your logic was wrong — because one teacher had four
                 minutes to check forty screens, and yours got a glance instead
                 of a look. Code Venue exists to fix exactly that.
               </p>
-            </section>
+            </header>
           </Reveal>
 
-          {/* Three-beat narrative — problem, belief, proof. */}
-          <div className="about2-pillars">
+          <hr className="ab-rule" />
+
+          {/* ---- The story: three beats, oversized ghost numerals ---- */}
+          <section className="ab-story" aria-label="Our story">
             {PILLARS.map((p, i) => (
-              <Reveal key={p.kicker} className={`about2-reveal d${i}`}>
-                <section className="cv-card about2-pillar">
-                  <span className="about2-kicker">{p.kicker}</span>
-                  <h2>{p.title}</h2>
-                  <p>{p.body}</p>
-                </section>
+              <Reveal key={p.n} className={`ab-d${i}`}>
+                <article className="ab-beat">
+                  <span className="ab-num" aria-hidden="true">
+                    {p.n}
+                  </span>
+                  <div className="ab-beat-body">
+                    <h2>{p.title}</h2>
+                    <p>{p.body}</p>
+                  </div>
+                </article>
               </Reveal>
             ))}
-          </div>
+          </section>
 
-          {/* Team — full names, linked where available. */}
-          <Reveal className="about2-reveal">
-            <section className="about2-team">
-              <span className="cv-kicker">The Creators</span>
-              <h2>Not a company. Four students.</h2>
-              <p>
+          <hr className="ab-rule" />
+
+          {/* ---- Team: two-column identity cards, no cramping ---- */}
+          <Reveal>
+            <section className="ab-team" aria-label="The creators">
+              <p className="ab-eyebrow">The Creators</p>
+              <h2 className="ab-team-title">Not a company. Four students.</h2>
+              <p className="ab-lede">
                 We sat through the same rushed lab checks everyone else did.
                 We're the students who got the zero — and decided to fix the
                 reason for it.
               </p>
 
-              <div className="about2-team-grid">
+              <ul className="ab-people">
                 {TEAM.map((m) => {
-                  const card = (
+                  const body = (
                     <>
-                      <div className="team-avatar">{m.initials}</div>
-                      <div className="about2-member">
+                      <span className="ab-person-avatar">{m.initials}</span>
+                      <span className="ab-person-meta">
                         <h3>{m.name}</h3>
                         <span>{m.role}</span>
-                      </div>
-                      {m.href && (
-                        <span className="about2-member-link">
-                          <Github size={13} /> GitHub
-                        </span>
-                      )}
+                        {m.href ? (
+                          <span className="ab-person-link">
+                            GitHub <ArrowUpRight size={12} />
+                          </span>
+                        ) : null}
+                      </span>
                     </>
                   );
-                  return m.href ? (
-                    <a
-                      key={m.name}
-                      href={m.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="cv-card cv-card-hover about2-member-card"
-                    >
-                      {card}
-                    </a>
-                  ) : (
-                    <div key={m.name} className="cv-card about2-member-card">
-                      {card}
-                    </div>
+                  return (
+                    <li key={m.name}>
+                      {m.href ? (
+                        <a
+                          className="ab-person ab-linked"
+                          href={m.href}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {body}
+                        </a>
+                      ) : (
+                        <div className="ab-person">{body}</div>
+                      )}
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             </section>
           </Reveal>
 
-          {/* Clear next step. */}
-          <Reveal className="about2-reveal">
-            <section className="cv-card about2-cta">
+          {/* ---- Closing: one dark card, one decision ---- */}
+          <Reveal>
+            <section className="ab-cta">
               <h2>Choose your venue.</h2>
-              <div className="about2-cta-row">
+              <p>
+                A room takes under a minute to set up. See the other side of
+                the zero.
+              </p>
+              <div className="ab-cta-actions">
                 <button
-                  className="cv-btn cv-btn-primary"
+                  className="ab-btn-light"
                   onClick={() => navigate("/examiner-portal")}
                 >
                   Run an exam <ArrowRight size={15} />
                 </button>
                 <button
-                  className="cv-btn cv-btn-secondary"
+                  className="ab-btn-ghost"
                   onClick={() => navigate("/student-portal")}
                 >
                   Join an exam

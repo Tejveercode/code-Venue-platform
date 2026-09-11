@@ -923,16 +923,358 @@ code-venue-page a,
   margin-top: 28px;
 }
 
-/* ---------- About page redesign ---------- */
+/* ---------- About page redesign (v2, editorial) ---------- */
 
-[data-code-venue-page] .about2 {
+[data-code-venue-page] .ab {
   width: 100%;
-  max-width: 900px;
+  max-width: 780px;
   margin: 0 auto;
-  padding: 56px 24px 88px;
+  padding: 64px 24px 96px;
   display: flex;
   flex-direction: column;
-  gap: 64px;
+  gap: 56px;
+}
+
+/* Reveal — transform/opacity only, respects reduced motion. */
+[data-code-venue-page] .ab-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.6s var(--ease-modal),
+    transform 0.6s var(--ease-modal);
+}
+
+[data-code-venue-page] .ab-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+[data-code-venue-page] .ab-d1 {
+  transition-delay: 0.07s;
+}
+
+[data-code-venue-page] .ab-d2 {
+  transition-delay: 0.14s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .ab-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Eyebrow label with a hairline tail — quieter than a pill. */
+[data-code-venue-page] .ab-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .ab-eyebrow::after {
+  content: "";
+  flex: 1;
+  max-width: 72px;
+  height: 1px;
+  background: rgba(181, 115, 74, 0.45);
+}
+
+/* Hero — tight display type, measured lede. */
+[data-code-venue-page] .ab-hero {
+  text-align: center;
+}
+
+[data-code-venue-page] .ab-hero .ab-eyebrow {
+  justify-content: center;
+}
+
+[data-code-venue-page] .ab-hero .ab-eyebrow::after {
+  display: none;
+}
+
+[data-code-venue-page] .ab-hero h1 {
+  margin: 18px 0 0;
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+[data-code-venue-page] .ab-hero h1 em {
+  font-style: normal;
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .ab-lede {
+  margin: 20px auto 0;
+  max-width: 34em;
+  font-size: 16.5px;
+  font-weight: 400;
+  line-height: 1.75;
+  color: var(--text-sub);
+  text-wrap: pretty;
+}
+
+[data-code-venue-page] .ab-team .ab-lede {
+  margin-top: 16px;
+  font-size: 15.5px;
+}
+
+/* Hairline section rules. */
+[data-code-venue-page] .ab-rule {
+  border: none;
+  border-top: 1px solid var(--surface-border);
+  margin: 0;
+}
+
+/* Story beats — ghost numeral left, text right. */
+[data-code-venue-page] .ab-story {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+[data-code-venue-page] .ab-beat {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+[data-code-venue-page] .ab-num {
+  font-size: clamp(56px, 9vw, 84px);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(181, 115, 74, 0.55);
+  user-select: none;
+}
+
+[data-code-venue-page] .ab-beat-body h2 {
+  margin: 6px 0 0;
+  font-size: clamp(22px, 3.2vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+[data-code-venue-page] .ab-beat-body p {
+  margin: 12px 0 0;
+  max-width: 36em;
+  font-size: 15.5px;
+  line-height: 1.8;
+  color: var(--text-sub);
+  text-wrap: pretty;
+}
+
+/* Team — two-column grid, generous cards. */
+[data-code-venue-page] .ab-team {
+  text-align: center;
+}
+
+[data-code-venue-page] .ab-team .ab-eyebrow {
+  justify-content: center;
+}
+
+[data-code-venue-page] .ab-team .ab-eyebrow::after {
+  display: none;
+}
+
+[data-code-venue-page] .ab-team-title {
+  margin: 16px 0 0;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+[data-code-venue-page] .ab-people {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+[data-code-venue-page] .ab-person {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 20px;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.25s var(--ease-modal),
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+[data-code-venue-page] .ab-person-avatar {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent-caramel);
+  background: var(--accent-glow);
+  border: 1px solid rgba(181, 115, 74, 0.3);
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+
+[data-code-venue-page] .ab-person-meta {
+  min-width: 0;
+}
+
+[data-code-venue-page] .ab-person-meta h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+[data-code-venue-page] .ab-person-meta > span {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .ab-person-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-caramel);
+}
+
+[data-code-venue-page] .ab-person.ab-linked:hover {
+  transform: translateY(-2px);
+  border-color: rgba(181, 115, 74, 0.45);
+  box-shadow: 0 16px 36px -20px var(--accent-glow);
+}
+
+[data-code-venue-page] .ab-person.ab-linked:hover .ab-person-avatar {
+  border-color: var(--accent-caramel);
+}
+
+/* Closing CTA — the one dark card on the page. */
+[data-code-venue-page] .ab-cta {
+  background: var(--accent-light);
+  border-radius: 22px;
+  padding: 48px 32px;
+  text-align: center;
+  color: #f7f3ec;
+}
+
+[data-code-venue-page] .ab-cta h2 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+[data-code-venue-page] .ab-cta p {
+  margin: 12px auto 0;
+  max-width: 30em;
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgba(247, 243, 236, 0.75);
+}
+
+[data-code-venue-page] .ab-cta-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+}
+
+[data-code-venue-page] .ab-btn-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #f7f3ec;
+  color: var(--accent-light);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-modal), opacity 0.2s ease;
+}
+
+[data-code-venue-page] .ab-btn-light:hover {
+  transform: translateY(-1px);
+  opacity: 0.94;
+}
+
+[data-code-venue-page] .ab-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 22px;
+  border: 1px solid rgba(247, 243, 236, 0.35);
+  border-radius: 12px;
+  background: transparent;
+  color: #f7f3ec;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+[data-code-venue-page] .ab-btn-ghost:hover {
+  border-color: rgba(247, 243, 236, 0.7);
+  background: rgba(247, 243, 236, 0.08);
+}
+
+/* Responsive: beats lose the numeral column on small screens (the numeral
+   moves inline above the title), team grid drops to one column. */
+@media (max-width: 640px) {
+  [data-code-venue-page] .ab {
+    padding: 44px 16px 72px;
+    gap: 44px;
+  }
+  [data-code-venue-page] .ab-beat {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  [data-code-venue-page] .ab-num {
+    font-size: 44px;
+    -webkit-text-stroke-width: 1.2px;
+  }
+  [data-code-venue-page] .ab-people {
+    grid-template-columns: 1fr;
+  }
+  [data-code-venue-page] .ab-cta {
+    padding: 36px 22px;
+  }
 }
 
 [data-code-venue-page] .about2-reveal {
