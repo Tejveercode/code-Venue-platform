@@ -197,22 +197,46 @@ code-venue-page a,
        2. nav > ul.cv-nav-list, gap: 32px (center / left-center)
        3. .cv-auth-buttons (far right)
      The hamburger toggle + .cv-mobile-menu are display:none on desktop,
-     so the rendered layout is exactly those three children. */
-  position: relative;
-  z-index: 10;
+     so the rendered layout is exactly those three children.
+
+     21st.dev navbar port: the header becomes sticky and condenses into a
+     floating glass pill once the page scrolls (see .cv-header.scrolled).
+     position: sticky (not fixed, as in the reference) so interior page
+     layouts are untouched and no offset compensation is needed. */
+  position: sticky;
+  top: 0;
+  z-index: 40;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  padding: 24px 0;
+  padding: 24px 24px;
   border-bottom: 1px solid var(--surface-border);
   /* Original pages centered the header row in a page container. */
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding-left: 24px;
-  padding-right: 24px;
+  transition:
+    background-color 0.3s var(--ease-modal),
+    border-color 0.3s var(--ease-modal),
+    box-shadow 0.3s var(--ease-modal),
+    max-width 0.3s var(--ease-modal),
+    padding 0.3s var(--ease-modal),
+    border-radius 0.3s var(--ease-modal);
+}
+
+/* Scrolled state — the 21st.dev floating glass pill, in venue colors. */
+[data-code-venue-page] .cv-header.scrolled {
+  max-width: 1040px;
+  margin-top: 10px;
+  border-radius: 18px;
+  padding: 12px 22px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+  border: 1px solid rgba(60, 46, 36, 0.12);
+  box-shadow: 0 6px 24px rgba(60, 46, 36, 0.1);
 }
 
 [data-code-venue-page] .cv-logo {
@@ -1145,6 +1169,13 @@ code-venue-page a,
 @media (max-width: 860px) {
   [data-code-venue-page] .cv-header {
     padding: 14px 16px;
+  }
+  /* Mobile pill: tighter radius/blur so it doesn't crowd the hamburger. */
+  [data-code-venue-page] .cv-header.scrolled {
+    max-width: calc(100% - 16px);
+    margin-top: 8px;
+    border-radius: 14px;
+    padding: 10px 14px;
   }
   /* Collapse nav + actions into the hamburger; keep logo left, toggle right. */
   [data-code-venue-page] .cv-nav,

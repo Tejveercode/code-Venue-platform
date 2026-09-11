@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { ChevronDown, Menu, X } from "lucide-react";
-import { PixelCanvas } from "./PixelCanvas";
+import { VortexCanvas } from "./VortexCanvas";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 export function CodeVenuePage({ children }: { children: ReactNode }) {
   return (
     <div data-code-venue-page className="min-h-screen flex flex-col">
-      <PixelCanvas />
+      <VortexCanvas />
       {children}
     </div>
   );
@@ -40,6 +40,23 @@ function AuthAwareActions() {
 export function VenueHeader({ actions }: { actions?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+
+  // Floating-glass-pill state: once the page scrolls past the fold's top,
+  // the header condenses into a sticky glass pill (CSS in index.css). The
+  // updater bails out on unchanged values, so scrolling costs no re-renders
+  // except at the threshold crossings.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled((prev) => {
+        const next = window.scrollY > 40;
+        return prev === next ? prev : next;
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Close the mobile menu whenever the route changes.
   useEffect(() => {
@@ -94,7 +111,9 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   );
 
   return (
-    <header className="cv-header">
+    <header
+      className={"cv-header" + (scrolled ? " scrolled" : "")}
+    >
       <Link to="/" className="cv-logo" aria-label="Code Venue home">
         Code&nbsp;<em>Venue</em>
       </Link>
