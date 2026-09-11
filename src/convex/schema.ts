@@ -64,13 +64,18 @@ const schema = defineSchema(
 
     // A student identity inside one room. clientId is a client-generated
     // UUID echoed back on every request — the durable identity.
+    // studentUid is a short public identifier (e.g. "S-7F3K2Q") shown to the
+    // student and used in download filenames so same-named students never
+    // collide — it is NOT a secret, unlike clientId.
     students: defineTable({
-      clientId: v.string(), // unique
+      clientId: v.string(), // unique, secret session token
+      studentUid: v.string(), // unique, public short identifier
       name: v.string(),
       joinedAt: v.number(),
       roomId: v.id("rooms"),
     })
       .index("by_client_id", ["clientId"])
+      .index("by_uid", ["studentUid"])
       .index("by_room", ["roomId"]),
 
     // One row per student, ever (studentId unique). Autosave upserts with

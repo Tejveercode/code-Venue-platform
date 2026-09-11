@@ -54,6 +54,29 @@ function randomToken(): string {
     .join("");
 }
 
+/**
+ * Public, human-friendly student UID (e.g. "S-7F3K2Q"). Ambiguous glyphs
+ * (0/O, 1/I) are excluded from the alphabet. Uniqueness is enforced against
+ * the by_uid index with retry.
+ */
+const UID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
+async function generateStudentUid(ctx: MutationCtx): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let suffix = "";
+    for (let i = 0; i < 6; i++) {
+      const idx = crypto.getRandomValues(new Uint8Array(1))[0]! % UID_ALPHABET.length;
+      suffix += UID_ALPHABET[idx];
+    }
+    const uid = `S-${suffix}`;
+    const taken = await ctx.db
+      .query("students")
+      .withIndex("by_uid", (q) => q.eq("studentUid", uid))
+      .unique();
+    if (!taken) return uid;
+  }
+  throw new Error("Could not generate a unique student UID");
+}
+
 async function requireExaminer(ctx: MutationCtx) {
   const examiner = await getCurrentExaminer(ctx);
   if (!examiner) throw new Error("Only examiners can do this");
@@ -569,18 +592,25 @@ export const joinRoom = mutation({
         )
         .unique();
       if (existing && existing.roomId === room._id) {
-        return { clientId: existing.clientId, studentId: existing._id, room };
+        return {
+          clientId: existing.clientId,
+          studentId: existing._id,
+          studentUid: existing.studentUid,
+          room,
+        };
       }
     }
 
     const clientId = randomToken();
+    const studentUid = await generateStudentUid(ctx);
     const studentId = await ctx.db.insert("students", {
       clientId,
+      studentUid,
       name,
       joinedAt: Date.now(),
       roomId: room._id,
     });
-    return { clientId, studentId, room };
+    return { clientId, studentId, studentUid, room };
   },
 });
 
@@ -712,6 +742,7 @@ export const getMySubmission = query({
       .unique();
     return {
       studentName: student.name,
+      studentUid: student.studentUid,
       submission: submission
         ? {
             code: submission.code,
@@ -746,8 +777,9 @@ export const getRoomSubmissions = query({
         return {
           studentId: student._id,
           // clientId doubles as the short-ID suffix for download filenames
-          // ({name}_{last6}.txt). Owner-only query, so exposing it here is safe.
+          // ({name}_{UID}.txt). Owner-only query, so exposing it here is safe.
           clientId: student.clientId,
+          studentUid: student.studentUid,
           name: student.name,
           submission: sub
             ? {

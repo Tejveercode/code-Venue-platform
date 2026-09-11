@@ -12,7 +12,11 @@ import { Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useParams } from "react-router";
-import { getStudentIdentity, setStudentIdentity } from "./StudentPortal";
+import {
+  getStudentIdentity,
+  persistStudentUid,
+  setStudentIdentity,
+} from "./StudentPortal";
 
 function fmtClock(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -101,6 +105,12 @@ export default function Exam() {
     () => getStudentIdentity(code).clientId,
   );
 
+  // Public, unique identifier shown to the student (e.g. "S-7F3K2Q") so they
+  // can identify their file in the examiner's downloads. Minted by the server
+  // at join time; re-minted on rejoin (rejoin only happens when identity is
+  // lost, so at most one UID per lost-session flow).
+  const [studentUid, setStudentUid] = useState<string | null>(null);
+
   const roomState = useQuery(api.exams.getExamRoomState, code ? { code } : "skip");
   const mySub = useQuery(
     api.exams.getMySubmission,
@@ -108,6 +118,7 @@ export default function Exam() {
   ) as
     | {
         studentName: string;
+        studentUid: string;
         submission: {
           code: string;
           isFinal: boolean;
@@ -142,6 +153,14 @@ export default function Exam() {
   useEffect(() => {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
   }, [roomState?.name]);
+
+  // Adopt the server-minted UID as soon as the submission query provides it.
+  useEffect(() => {
+    if (mySub?.studentUid) {
+      setStudentUid(mySub.studentUid);
+      if (clientId) persistStudentUid(code, mySub.studentUid);
+    }
+  }, [mySub?.studentUid, clientId, code]);
 
   // Restore the autosaved draft exactly once, from the DB — not the tab.
   useEffect(() => {
@@ -382,6 +401,14 @@ export default function Exam() {
             <div className="cv-exam-title">
               <h1>{roomState.name}</h1>
               {roomClosed ? <ClosedPill /> : <LivePill />}
+              {studentUid && (
+                <span
+                  className="cv-pill cv-pill-code"
+                  title="Your unique ID — your examiner's downloaded file will be named with it"
+                >
+                  UID: {studentUid}
+                </span>
+              )}
             </div>
             {!locked && <Timer endsAt={endsAt} onExpire={handleTimerExpire} />}
             {locked && <div className="cv-timer">00:00</div>}
@@ -508,13 +535,22 @@ export default function Exam() {
     setRejoining(true);
     setRejoinError(null);
     try {
-      const res: { error?: string; clientId?: string } = await join({ code, name });
+      const res: {
+        error?: string;
+        clientId?: string;
+        studentUid?: string;
+      } = await join({ code, name });
       if (res.error) {
         setRejoinError(res.error);
         return;
       }
       if (res.clientId) {
-        setStudentIdentity(code, res.clientId, name);
+        if (res.studentUid) {
+          setStudentIdentity(code, res.clientId, name, res.studentUid);
+          setStudentUid(res.studentUid);
+        } else {
+          setStudentIdentity(code, res.clientId, name, "");
+        }
         setClientId(res.clientId);
       }
     } catch {

@@ -2,18 +2,13 @@
  * Submission download helpers (examiner side).
  *
  * Naming convention shared by the single-file and zip flows:
- *   "{student name}_{last 6 chars of clientId}.txt"
- * The short-ID suffix guarantees two students with the same name never
- * collide inside a zip. ".txt" is used because submission code is stored as
- * plain text and no language detection is attempted.
+ *   "{student name}_{studentUid}.txt"  e.g. "Akash_S-7F3K2Q.txt"
+ * The UID is minted per student by the server at join time and is unique,
+ * so two students with the same name never collide inside a zip — and the
+ * examiner can match a file to a student via the UID shown on the student's
+ * exam screen. ".txt" is used because submission code is stored as plain
+ * text and no language detection is attempted.
  */
-
-const SHORT_ID_LEN = 6;
-
-/** last 6 hex chars of a 32-char clientId (or student id fallback). */
-export function shortId(clientId: string): string {
-  return clientId.slice(-SHORT_ID_LEN);
-}
 
 /**
  * Turn a free-text name into a filesystem-safe filename fragment:
@@ -31,13 +26,13 @@ export function sanitizeFilename(name: string): string {
     .slice(0, 80); // keep filenames reasonable on every OS
 }
 
-/** "{name}_{last-6-of-clientId}.txt" — the canonical per-student filename. */
+/** "{name}_{UID}.txt" — the canonical per-student filename. */
 export function submissionFileName(
   studentName: string,
-  clientId: string,
+  studentUid: string,
 ): string {
   const base = sanitizeFilename(studentName) || "student";
-  return `${base}_${shortId(clientId)}.txt`;
+  return `${base}_${studentUid}.txt`;
 }
 
 /**

@@ -1,13 +1,14 @@
 /**
  * VortexCanvas — Code Venue ambient background.
  *
- * Orbital particle vortex (the signature motion of the 21st.dev "Flux
- * Vortex" reference) rendered natively in Canvas2D with the venue palette.
- * Zero dependencies — unlike the reference, which loads three.js + GSAP
- * from CDNs inside an iframe at runtime.
+ * Native Canvas2D port of the 21st.dev "Flux Vortex" (mengto) signature
+ * motion: a swirling funnel of glowing points with spiral arms, spiral guide
+ * curves, ambient drift, and a soft bloom feel — tinted in the venue palette
+ * instead of the reference's monochrome dark theme. Zero dependencies (the
+ * reference loads three.js + GSAP from CDNs inside an iframe; this does not).
  *
  * Perf guarantees carried over from PixelCanvas:
- *  - prefers-reduced-motion: static field, no rAF loop.
+ *  - prefers-reduced-motion: one static render, no rAF loop.
  *  - Tab hidden (Page Visibility): loop stops, timeline freezes on return.
  *  - Resize: debounced (220ms) behind a ResizeObserver.
  *  - Single requestAnimationFrame loop; no setInterval.
@@ -17,27 +18,38 @@ import { useEffect, useRef } from "react";
 
 const RESIZE_DEBOUNCE_MS = 220;
 
+// Venue palette (cream base + caramel glow family) — no new design colors.
+const BG_RGB = "247, 243, 236"; // #f7f3ec
+const PALETTE = ["#b5734a", "#c8966e", "#e8c39e", "#d8cfc0"];
+
+// Funnel geometry (fractions of viewport).
+const RIM_Y = 0.16; // wide mouth (top)
+const APEX_Y = 0.72; // narrow throat (bottom)
+const MIN_R = 0.045; // throat radius (× min(vw, vh))
+const MAX_R = 0.62; // rim radius (× min(vw, vh))
+const ARMS = 4; // spiral arms
+const TWIST = 1.6; // arm turns from apex to rim
+
 type Particle = {
-  a0: number; // angle at t=0 (radians)
-  r: number; // mean orbital radius (px)
-  w: number; // angular velocity (rad/s)
-  wb: number; // radial breathing speed
-  amp: number; // radial breathing amplitude (px)
-  round: boolean; // circles = dust, squares = pixel nod
+  z: number; // 0 = apex (bottom, narrow) … 1 = rim (top, wide)
+  theta: number; // angle around the funnel axis
+  w: number; // angular velocity (differential rotation, scaled per z)
+  drift: number; // downward drift speed (z per second)
   size: number;
-  color: string;
-  maxAlpha: number;
+  sprite: number; // index into sprite cache
+  alpha: number;
   tw: number; // twinkle phase
-  twSpeed: number; // twinkle speed
+  twSpeed: number;
 };
 
 type Controller = {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   particles: Particle[];
+  sprites: HTMLCanvasElement[];
   width: number;
   height: number;
-  start: number | null;
+  last: number | null; // previous frame timestamp (ms)
   pausedAt: number | null;
   raf: number | null;
   running: boolean;
@@ -52,82 +64,107 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-function buildParticleField(w: number, h: number): Particle[] {
-  const maxR = Math.hypot(w, h) / 2;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const areaScale = Math.min(1.6, (w * h) / (1440 * 900));
-  const palette = ["#c8966e", "#d8cfc0", "#e8c39e", "#b5734a"];
+/** Soft round glow sprite tinted `color` (used for the bloom look). */
+function makeGlowSprite(color: string): HTMLCanvasElement {
+  const s = document.createElement("canvas");
+  s.width = 64;
+  s.height = 64;
+  const g = s.getContext("2d")!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, color);
+  grad.addColorStop(0.35, color);
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.globalAlpha = 1;
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return s;
+}
+
+function buildVortex(w: number, h: number): Particle[] {
+  const areaScale = Math.min(1.5, Math.max(0.5, (w * h) / (1440 * 900)));
+  const count = Math.round(620 * areaScale);
   const particles: Particle[] = [];
-  const RING_COUNT = 3;
-  const BASE = 90;
-
-  for (let ring = 0; ring < RING_COUNT; ring++) {
-    const ringFrac = (ring + 1) / RING_COUNT;
-    const count = Math.max(30, Math.round(BASE * ringFrac * areaScale));
-    const ringSpeed = 0.22 - ring * 0.05;
-    const radiusBase = maxR * (0.28 + 0.24 * ring);
-
-    for (let i = 0; i < count; i++) {
-      particles.push({
-        a0: i * 2.399963 + (Math.random() - 0.5) * 0.35,
-        r: radiusBase * (0.85 + Math.random() * 0.3),
-        w: ringSpeed * (0.8 + Math.random() * 0.4),
-        wb: 0.25 + Math.random() * 0.35,
-        amp: 6 + Math.random() * 14,
-        round: Math.random() < 0.7,
-        size: (Math.random() < 0.7 ? 1.2 : 2.2) * dpr,
-        color: palette[(i + ring) % palette.length],
-        maxAlpha: 0.12 + Math.random() * 0.5,
-        tw: Math.random() * Math.PI * 2,
-        twSpeed: 0.6 + Math.random() * 1.2,
-      });
-    }
+  for (let i = 0; i < count; i++) {
+    const arm = i % ARMS;
+    const z = Math.random();
+    // Points hug their arm's spiral with jitter; pure-random angles fill gaps.
+    const spiralAngle =
+      (arm / ARMS) * Math.PI * 2 + Math.pow(z, 1.15) * TWIST * Math.PI * 2;
+    const theta = Math.random() < 0.8 ? spiralAngle + (Math.random() - 0.5) * 0.5 : Math.random() * Math.PI * 2;
+    // Differential rotation: the narrow throat visibly spins faster.
+    const wSpeed = (0.9 - z * 0.55) * (0.75 + Math.random() * 0.5);
+    particles.push({
+      z,
+      theta,
+      w: wSpeed,
+      drift: 0.008 + Math.random() * 0.022, // ambient downward drift
+      size: 5 + Math.random() * 12,
+      sprite: (i + arm) % PALETTE.length,
+      alpha: 0.16 + Math.random() * 0.4,
+      tw: Math.random() * Math.PI * 2,
+      twSpeed: 0.5 + Math.random() * 1.1,
+    });
   }
   return particles;
 }
 
-function drawParticle(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  p: Particle,
+/** Project a funnel point to screen space. */
+function project(
+  c: Controller,
+  z: number,
+  theta: number,
   t: number,
-) {
-  const angle = p.a0 + p.w * t;
-  const radius = p.r + Math.sin(t * p.wb + p.tw) * p.amp;
-  const x = cx + Math.cos(angle) * radius;
-  // Slight vertical squash reads as orbital depth.
-  const y = cy + Math.sin(angle) * radius * 0.82;
-  const twinkle = 0.55 + 0.45 * Math.sin(t * p.twSpeed + p.tw);
-  const a = p.maxAlpha * twinkle;
-  if (a <= 0.01) return;
-  ctx.globalAlpha = Math.min(1, Math.max(0, a));
-  ctx.fillStyle = p.color;
-  if (p.round) {
+): { x: number; y: number; scale: number } {
+  const minDim = Math.min(c.width, c.height);
+  const r =
+    MIN_R * minDim + (MAX_R - MIN_R) * minDim * Math.pow(z, 1.15);
+  const rimY = c.height * RIM_Y;
+  const apexY = c.height * APEX_Y;
+  return {
+    x: c.width / 2 + Math.cos(theta) * r,
+    y: rimY + (1 - z) * (apexY - rimY),
+    scale: 0.45 + 0.55 * z, // smaller near the throat (depth cue)
+  };
+}
+
+/** Faint spiral guide curves — the reference's "spiral guides". */
+function drawGuides(c: Controller, t: number) {
+  const ctx = c.ctx;
+  const minDim = Math.min(c.width, c.height);
+  const rimY = c.height * RIM_Y;
+  const apexY = c.height * APEX_Y;
+  ctx.save();
+  ctx.lineWidth = 1;
+  for (let arm = 0; arm < ARMS; arm++) {
     ctx.beginPath();
-    ctx.arc(x, y, p.size, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    ctx.fillRect(x - p.size / 2, y - p.size / 2, p.size, p.size);
+    const phase = (arm / ARMS) * Math.PI * 2 + t * 0.05;
+    for (let step = 0; step <= 28; step++) {
+      const z = step / 28;
+      const theta = phase + Math.pow(z, 1.15) * TWIST * Math.PI * 2;
+      const r = MIN_R * minDim + (MAX_R - MIN_R) * minDim * Math.pow(z, 1.15);
+      const x = c.width / 2 + Math.cos(theta) * r;
+      const y = rimY + (1 - z) * (apexY - rimY);
+      if (step === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "rgba(181, 115, 74, 0.07)";
+    ctx.stroke();
   }
+  ctx.restore();
 }
 
 function drawStatic(c: Controller) {
-  const cx = c.width / 2;
-  const cy = c.height / 2;
-  c.ctx.clearRect(0, 0, c.width, c.height);
+  const ctx = c.ctx;
+  ctx.fillStyle = `rgb(${BG_RGB})`;
+  ctx.fillRect(0, 0, c.width, c.height);
+  drawGuides(c, 0);
   for (const p of c.particles) {
-    c.ctx.globalAlpha = p.maxAlpha;
-    c.ctx.fillStyle = p.color;
-    if (p.round) {
-      c.ctx.beginPath();
-      c.ctx.arc(cx + Math.cos(p.a0) * p.r, cy + Math.sin(p.a0) * p.r * 0.82, p.size, 0, Math.PI * 2);
-      c.ctx.fill();
-    } else {
-      c.ctx.fillRect(cx + Math.cos(p.a0) * p.r - p.size / 2, cy + Math.sin(p.a0) * p.r * 0.82 - p.size / 2, p.size, p.size);
-    }
+    const pos = project(c, p.z, p.theta, 0);
+    const size = p.size * pos.scale;
+    ctx.globalAlpha = p.alpha;
+    ctx.drawImage(c.sprites[p.sprite]!, pos.x - size / 2, pos.y - size / 2, size, size);
   }
-  c.ctx.globalAlpha = 1;
+  ctx.globalAlpha = 1;
 }
 
 function tick(c: Controller) {
@@ -136,21 +173,40 @@ function tick(c: Controller) {
     c.running = false;
     return;
   }
-  if (c.start === null) c.start = performance.now();
-  const t = (performance.now() - c.start) / 1000;
-  const cx = c.width / 2;
-  const cy = c.height / 2;
-  c.ctx.clearRect(0, 0, c.width, c.height);
+  const now = performance.now();
+  if (c.last === null) c.last = now;
+  const dt = Math.min(0.05, (now - c.last) / 1000); // clamp tab-switch jumps
+  c.last = now;
+  const t = now / 1000;
+
+  const ctx = c.ctx;
+  // Fade toward the page cream instead of clearing — cheap bloom trails.
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = `rgba(${BG_RGB}, 0.22)`;
+  ctx.fillRect(0, 0, c.width, c.height);
+  drawGuides(c, t);
+
   for (const p of c.particles) {
-    drawParticle(c.ctx, cx, cy, p, t);
+    p.theta += p.w * dt * 0.5;
+    p.z -= p.drift * dt;
+    if (p.z < 0) p.z = 1; // respawn at the rim — continuous funnel
+    const pos = project(c, p.z, p.theta, t);
+    const size = p.size * pos.scale;
+    const twinkle = 0.6 + 0.4 * Math.sin(t * p.twSpeed + p.tw);
+    const a = p.alpha * twinkle;
+    if (a <= 0.015) continue;
+    ctx.globalAlpha = Math.min(1, a);
+    ctx.drawImage(c.sprites[p.sprite]!, pos.x - size / 2, pos.y - size / 2, size, size);
   }
-  c.ctx.globalAlpha = 1;
+  ctx.globalAlpha = 1;
+
   c.raf = requestAnimationFrame(() => tick(c));
 }
 
 function startAnimation(c: Controller) {
   if (c.running || c.reducedMotion || document.hidden) return;
   c.running = true;
+  c.last = null;
   if (c.raf !== null) cancelAnimationFrame(c.raf);
   c.raf = requestAnimationFrame(() => tick(c));
 }
@@ -161,9 +217,10 @@ function buildController(canvas: HTMLCanvasElement): Controller {
     canvas,
     ctx,
     particles: [],
+    sprites: PALETTE.map(makeGlowSprite),
     width: 0,
     height: 0,
-    start: null,
+    last: null,
     pausedAt: null,
     raf: null,
     running: false,
@@ -181,10 +238,9 @@ function buildController(canvas: HTMLCanvasElement): Controller {
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.particles = buildParticleField(w, h);
+    c.particles = buildVortex(w, h);
 
     if (animate && !c.reducedMotion && !document.hidden) {
-      c.start = null;
       startAnimation(c);
     } else {
       if (c.raf !== null) cancelAnimationFrame(c.raf);
@@ -217,9 +273,8 @@ function buildController(canvas: HTMLCanvasElement): Controller {
   lastH = window.innerHeight;
   rebuild(true);
 
-  if (observer) {
-    observer.observe(canvas);
-  } else {
+  if (observer) observer.observe(canvas);
+  else {
     const onResize = () => {
       if (resizeTimer !== null) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => rebuild(true), RESIZE_DEBOUNCE_MS);
@@ -230,13 +285,14 @@ function buildController(canvas: HTMLCanvasElement): Controller {
 
   const onVisibility = () => {
     if (document.hidden) {
-      c.pausedAt = c.start !== null ? performance.now() : null;
+      c.pausedAt = c.last;
       if (c.raf !== null) cancelAnimationFrame(c.raf);
       c.raf = null;
       c.running = false;
     } else {
-      if (c.pausedAt !== null && c.start !== null) {
-        c.start += performance.now() - c.pausedAt;
+      if (c.pausedAt !== null) {
+        // Freeze the timeline while hidden so motion resumes seamlessly.
+        c.last = null;
         c.pausedAt = null;
       }
       startAnimation(c);

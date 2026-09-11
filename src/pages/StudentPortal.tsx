@@ -8,25 +8,42 @@ import { useNavigate } from "react-router";
 export function getStudentIdentity(roomCode: string): {
   clientId: string | null;
   name: string | null;
+  uid: string | null;
 } {
   try {
     const key = roomCode.trim().toUpperCase();
     return {
       clientId: localStorage.getItem(`cv:clientId:${key}`),
       name: localStorage.getItem(`cv:name:${key}`),
+      uid: localStorage.getItem(`cv:uid:${key}`),
     };
   } catch {
-    return { clientId: null, name: null };
+    return { clientId: null, name: null, uid: null };
   }
 }
 
-export function setStudentIdentity(roomCode: string, clientId: string, name: string) {
+export function setStudentIdentity(
+  roomCode: string,
+  clientId: string,
+  name: string,
+  uid: string,
+) {
   try {
     const key = roomCode.trim().toUpperCase();
     localStorage.setItem(`cv:clientId:${key}`, clientId);
     localStorage.setItem(`cv:name:${key}`, name);
+    localStorage.setItem(`cv:uid:${key}`, uid);
   } catch {
     // storage unavailable — session-only identity
+  }
+}
+
+/** Store just the UID (the exam page calls this once the server confirms it). */
+export function persistStudentUid(roomCode: string, uid: string) {
+  try {
+    localStorage.setItem(`cv:uid:${roomCode.trim().toUpperCase()}`, uid);
+  } catch {
+    // storage unavailable — the UID still shows live on the exam screen
   }
 }
 
@@ -63,7 +80,7 @@ export default function StudentPortal() {
         setError(result.error ?? "Could not join the room.");
         return;
       }
-      setStudentIdentity(trimmedCode, result.clientId, trimmedName);
+      setStudentIdentity(trimmedCode, result.clientId, trimmedName, result.studentUid);
       navigate(`/exam/${encodeURIComponent(trimmedCode)}`);
     } catch {
       setError("Could not join the room. Please try again.");
@@ -138,6 +155,8 @@ export default function StudentPortal() {
 
             <p className="cv-form-footer">
               No account needed — your exam identity is tied to this browser.
+              You'll receive a unique ID (e.g. <strong>S-7F3K2Q</strong>) after
+              joining; use it to identify your submission file.
             </p>
           </div>
         </div>

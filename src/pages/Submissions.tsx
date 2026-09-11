@@ -31,6 +31,7 @@ type SubmissionInfo = {
 type SubRowData = {
   studentId: string;
   clientId: string;
+  studentUid: string;
   name: string;
   submission: SubmissionInfo | null;
 };
@@ -45,6 +46,7 @@ const formatSubTime = (isFinal: boolean, submittedAt: number | null, updatedAt: 
 const SubRow = memo(function SubRow({
   studentId,
   name,
+  studentUid,
   timeLabel,
   selected,
   downloadable,
@@ -53,6 +55,7 @@ const SubRow = memo(function SubRow({
 }: {
   studentId: string;
   name: string;
+  studentUid: string;
   timeLabel: string;
   selected: boolean;
   downloadable: boolean;
@@ -64,13 +67,18 @@ const SubRow = memo(function SubRow({
     // select area without nesting interactive elements.
     <div className={"cv-sub-row" + (selected ? " selected" : "")}>
       <button className="cv-sub-main" onClick={() => onSelect(studentId)}>
-        <span className="cv-sub-name">{name}</span>
+        <span className="cv-sub-name">
+          {name}
+          <span className="cv-sub-uid" title="Unique student ID — matches download filenames">
+            {studentUid}
+          </span>
+        </span>
         <span className="cv-sub-time">{timeLabel}</span>
       </button>
       {downloadable && (
         <button
           className="cv-sub-download"
-          title={`Download ${name}'s code`}
+          title={`Download ${name}'s code (${name}_${studentUid}.txt)`}
           aria-label={`Download ${name}'s code`}
           onClick={() => onDownload(studentId)}
         >
@@ -176,7 +184,7 @@ export default function Submissions() {
       const zip = new JSZip();
       const used = new Set<string>();
       for (const r of finalRows) {
-        let fname = submissionFileName(r.name, r.clientId);
+        let fname = submissionFileName(r.name, r.studentUid);
         // Belt-and-braces against duplicate names inside the archive.
         let n = 2;
         while (used.has(fname)) fname = fname.replace(/\.txt$/, `-${n++}.txt`);
@@ -200,7 +208,7 @@ export default function Submissions() {
       if (!r?.submission?.isFinal) return;
       downloadBlob(
         new Blob([r.submission.code], { type: "text/plain;charset=utf-8" }),
-        submissionFileName(r.name, r.clientId),
+        submissionFileName(r.name, r.studentUid),
       );
     },
     [rows],
@@ -261,6 +269,7 @@ export default function Submissions() {
                     key={row.studentId}
                     studentId={row.studentId}
                     name={row.name}
+                    studentUid={row.studentUid}
                     timeLabel={formatSubTime(
                       row.submission!.isFinal,
                       row.submission!.submittedAt,
@@ -346,7 +355,7 @@ export default function Submissions() {
           />
           <p className="cv-modal-sub" style={{ marginTop: 8, marginBottom: 0 }}>
             Saved as <strong>{safeZipBase}.zip</strong> — one file per student
-            ({`{name}_{last 6 of ID}`}.txt).
+            ({`{name}_${"{UID}"}`}.txt, e.g. Akash_S-7F3K2Q.txt).
           </p>
         </div>
       </Modal>
