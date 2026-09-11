@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, Equal, X } from "lucide-react";
 import { VortexCanvas } from "./VortexCanvas";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -41,15 +41,15 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
-  // Floating-glass-pill state: once the page scrolls past the fold's top,
-  // the header condenses into a sticky glass pill (CSS in index.css). The
-  // updater bails out on unchanged values, so scrolling costs no re-renders
-  // except at the threshold crossings.
+  // Floating-glass-pill state: once the page scrolls past the reference's
+  // 50px threshold, the header condenses into a sticky glass pill (CSS in
+  // index.css). The updater bails out on unchanged values, so scrolling
+  // costs no re-renders except at the threshold crossings.
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => {
       setScrolled((prev) => {
-        const next = window.scrollY > 40;
+        const next = window.scrollY > 50;
         return prev === next ? prev : next;
       });
     };
@@ -124,13 +124,16 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
         <AuthAwareActions />
         {actions}
       </div>
+      {/* Morphing hamburger — 21st.dev reference: the Equal icon rotates
+          and fades out while the X rotates in (200ms, both icons stacked). */}
       <button
-        className="cv-menu-toggle"
+        className={"cv-menu-toggle" + (menuOpen ? " open" : "")}
         aria-label={menuOpen ? "Close menu" : "Open menu"}
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((o) => !o)}
       >
-        {menuOpen ? <X size={20} /> : <Menu size={20} />}
+        <Equal size={20} className="cv-toggle-equal" />
+        <X size={20} className="cv-toggle-x" />
       </button>
       {/* Mobile dropdown menu — links first, then auth actions. */}
       <div className={"cv-mobile-menu" + (menuOpen ? " open" : "")}>
