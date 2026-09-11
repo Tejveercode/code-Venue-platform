@@ -134,9 +134,9 @@ export default function About() {
               <div className="badge">The Creators</div>
               <h2>We're not a company.</h2>
               <p className="about-sub">
-                Built by four BCA students under Mr. Arvinder Singh at
-                Chandigarh University. We're the students who got the zero, and
-                decided to fix the reason for it.
+                Built by four BCA students who sat through the same rushed lab
+                checks everyone else did. We're the students who got the zero,
+                and decided to fix the reason for it.
               </p>
             </div>
 
@@ -148,22 +148,32 @@ export default function About() {
                 className="team-card hover-glow"
               >
                 <div className="team-avatar">TS</div>
-                <h3>Tejveer</h3>
+                <h3>Tejveer Singh</h3>
+                <span>BCA Student</span>
+              </a>
+              <a
+                href="https://github.com/Akash-Grewal"
+                target="_blank"
+                rel="noreferrer"
+                className="team-card hover-glow"
+              >
+                <div className="team-avatar">AS</div>
+                <h3>Akashdeep Singh</h3>
+                <span>BCA Student</span>
+              </a>
+              <a
+                href="https://github.com/Aditya-Rangta"
+                target="_blank"
+                rel="noreferrer"
+                className="team-card hover-glow"
+              >
+                <div className="team-avatar">A</div>
+                <h3>Aditya Rangta</h3>
                 <span>BCA Student</span>
               </a>
               <div className="team-card hover-glow">
-                <div className="team-avatar">AS</div>
-                <h3>Akashdeep</h3>
-                <span>BCA Student</span>
-              </div>
-              <div className="team-card hover-glow">
-                <div className="team-avatar">A</div>
-                <h3>Aditya</h3>
-                <span>BCA Student</span>
-              </div>
-              <div className="team-card hover-glow">
                 <div className="team-avatar">D</div>
-                <h3>Danish</h3>
+                <h3>Danish Gupta</h3>
                 <span>BCA Student</span>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { GraduationCap, MonitorPlay, ShieldCheck, Timer, Users, Zap, ArrowRight } from "lucide-react";
+import { GraduationCap, MonitorPlay, ShieldCheck, Timer, Users, Zap, ArrowRight, FileArchive, TimerReset, Wifi } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
 
 const FEATURES = [
@@ -36,10 +36,16 @@ const FEATURES = [
   },
 ];
 
+/** Scannable proof strip — three claims a visitor can verify at a glance. */
+const PROOF = [
+  { icon: TimerReset, title: "No lost work", body: "Autosave every keystroke — crashes don't cost marks." },
+  { icon: Wifi, title: "No exam-day setup", body: "One code joins the room. No installs, no accounts for students." },
+  { icon: FileArchive, title: "One-click grading", body: "Download every submission as a zip when the exam ends." },
+];
+
 export default function Landing() {
   const navigate = useNavigate();
 
-  // Ensure a signed-in examiner lands somewhere useful instead of a dead end.
   useEffect(() => {
     document.title = "Code Venue — Live Coding Exams";
   }, []);
@@ -49,6 +55,7 @@ export default function Landing() {
       <div className="cv-shell">
         <VenueHeader />
 
+        {/* 02. Clear hero message — one sentence, then the next action. */}
         <section className="cv-hero">
           <span className="cv-kicker">Live coding exams</span>
           <h1>
@@ -61,8 +68,23 @@ export default function Landing() {
             room and share a code, students join in one click and code against
             the clock. Real autosaves, real timers, real submissions.
           </p>
+          <div className="cv-hero-cta">
+            <button
+              className="cv-btn cv-btn-primary"
+              onClick={() => navigate("/student-portal")}
+            >
+              Join an exam <ArrowRight size={15} />
+            </button>
+            <button
+              className="cv-btn cv-btn-secondary"
+              onClick={() => navigate("/examiner-portal")}
+            >
+              Run an exam
+            </button>
+          </div>
         </section>
 
+        {/* 03. Logical flow — answer "what do you do?" with two obvious paths. */}
         <section className="cv-role-grid">
           <div
             className="cv-card cv-card-hover cv-role-card"
@@ -109,6 +131,20 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Proof before persuasion — the "why should I trust you?" answer. */}
+        <section className="cv-feature-section" aria-label="Why Code Venue">
+          <div className="cv-stat-row">
+            {PROOF.map((p) => (
+              <div key={p.title} className="cv-card cv-stat-card">
+                <span className="cv-stat-label">
+                  <p.icon size={14} /> {p.title}
+                </span>
+                <span className="cv-stat-body">{p.body}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="cv-feature-section">
           <h2 className="cv-section-title">Everything an exam venue needs</h2>
           <p className="cv-section-sub">
@@ -124,6 +160,15 @@ export default function Landing() {
                 <p>{f.body}</p>
               </div>
             ))}
+          </div>
+          {/* "Tell me what to do next." */}
+          <div className="cv-hero-cta" style={{ justifyContent: "center", marginTop: 34 }}>
+            <button
+              className="cv-btn cv-btn-primary"
+              onClick={() => navigate("/examiner-portal")}
+            >
+              Start your first exam <ArrowRight size={15} />
+            </button>
           </div>
         </section>
 

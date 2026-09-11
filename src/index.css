@@ -901,6 +901,28 @@ code-venue-page a,
   color: var(--text-sub);
 }
 
+[data-code-venue-page] .cv-stat-body {
+  display: block;
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .cv-stat-card .cv-stat-label {
+  color: var(--accent-caramel);
+}
+
+/* Hero call-to-action row. */
+[data-code-venue-page] .cv-hero-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
 [data-code-venue-page] .cv-panel {
   margin-top: 28px;
   padding: 24px 24px 16px;
