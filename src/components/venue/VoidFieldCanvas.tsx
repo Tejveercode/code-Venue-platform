@@ -342,7 +342,24 @@ export function VoidFieldCanvas() {
     canvas.style.height = "100vh";
     canvas.style.zIndex = "-1";
     canvas.style.pointerEvents = "none";
+    // Readability: keep the field as ambience, not competition. Halving the
+    // canvas opacity puts peak dot contrast well under body-text contrast.
+    canvas.style.opacity = "0.5";
     host.appendChild(canvas);
+
+    // Readability veil — a soft cream wash over the content band (where
+    // headlines and paragraphs live), fading to nothing toward the edges so
+    // the field stays visible around the margins. Sits above the canvas,
+    // below all page content, ignores pointers.
+    const veil = document.createElement("div");
+    veil.setAttribute("aria-hidden", "true");
+    veil.style.position = "fixed";
+    veil.style.inset = "0";
+    veil.style.zIndex = "-1";
+    veil.style.pointerEvents = "none";
+    veil.style.background =
+      "radial-gradient(ellipse 95% 70% at 50% 30%, rgba(247, 243, 236, 0.92) 0%, rgba(247, 243, 236, 0.6) 45%, rgba(247, 243, 236, 0) 78%)";
+    host.appendChild(veil);
 
     const c = buildController(canvas);
     if (!c) return; // no WebGL — the cream page simply stays plain
@@ -360,6 +377,7 @@ export function VoidFieldCanvas() {
       document.removeEventListener("pointermove", cAny.__onPointer!);
       if (c.raf !== null) cancelAnimationFrame(c.raf);
       c.gl.getExtension("WEBGL_lose_context")?.loseContext();
+      veil.remove();
       canvas.remove();
     };
   }, []);
