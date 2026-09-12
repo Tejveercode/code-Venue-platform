@@ -12,10 +12,11 @@ import { components } from "./_generated/api";
 //                     (resends, retries) but sustained spam must be capped.
 //   "fixed window"  — a hard quota per window. Used for coarse global caps.
 //
-// Note on auth: OTP *verification* is additionally protected natively by
+// Note on auth: OTP *verification* (code entry) is protected natively by
 // @convex-dev/auth's failed-attempt limiter — 10 failed attempts/hour per
-// identifier (refill-based, exponential-style backoff, no hard lockout),
-// configurable via convexAuth({ signIn: { maxFailedAttempsPerHour } }).
+// identifier (refill-based backoff, no hard lockout), configurable via
+// convexAuth({ signIn: { maxFailedAttempsPerHour } }). There is no client-
+// reachable hook to wrap verification, so no custom limiter is defined here.
 // OTP *send* limits (otpSendPerEmail / otpSendGlobal) are enforced inside
 // the email provider (auth/emailOtp.ts): the auth component's signIn action
 // is the ONLY client-reachable path for sending codes, so these cannot be
@@ -36,20 +37,6 @@ export const RATE_LIMITS = {
   otpSendGlobal: {
     kind: "fixed window",
     rate: 120,
-    period: HOUR,
-  },
-
-  // --- Auth: verifying an OTP code (defense in depth; auth lib also limits
-  // failed attempts per email natively) --------------------------------------
-  otpVerifyPerEmail: {
-    kind: "token bucket",
-    rate: 20,
-    period: HOUR,
-    capacity: 10,
-  },
-  otpVerifyGlobal: {
-    kind: "fixed window",
-    rate: 600,
     period: HOUR,
   },
 

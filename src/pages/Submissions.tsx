@@ -208,6 +208,9 @@ export default function Submissions() {
       });
       downloadBlob(blob, `${safeZipBase}.zip`);
       setZipOpen(false);
+    } catch {
+      // Archive building is local (no server state) — a failure is transient
+      // and the examiner can simply retry, so stay on the modal.
     } finally {
       setZipping(false);
     }
