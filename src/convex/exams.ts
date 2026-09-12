@@ -1,5 +1,5 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
   mutation,
@@ -7,22 +7,25 @@ import {
   QueryCtx,
   MutationCtx,
 } from "./_generated/server";
-
-// ---------------------------------------------------------------------------
-// Limits (server-side, so the UI can't be bypassed)
-// ---------------------------------------------------------------------------
-
-const MAX_LIST_ROOMS = 200; // per examiner
-const MAX_COUNT_ROOMS = 50; // per getRoomCounts call
-const MAX_STUDENT_NAME = 60;
-const MAX_ROOM_NAME = 120;
-const MAX_ROOM_PROMPT = 10_000;
-const MAX_SUBMISSION_CODE = 64_000; // ~64KB of code per student
-const AUTOSAVE_MIN_INTERVAL_MS = 1_000; // damp spammy autosave writes
-
-// Rate limits (fixed-window counters in the rateLimits table)
-const JOIN_LIMIT_PER_CLIENT = 5; // per 60s, per client session
-const JOIN_LIMIT_WINDOW_MS = 60_000;
+import {
+  MAX_LIST_ROOMS,
+  MAX_COUNT_ROOMS,
+  MAX_ROOM_IDS_PER_QUERY,
+  AUTOSAVE_MIN_INTERVAL_MS,
+} from "./limits";
+import {
+  validateRoomName,
+  validateRoomPrompt,
+  validateDuration,
+  validateEnrolledLimit,
+  validateRoomCode,
+  validateStudentName,
+  validateStudentId,
+  validateClientId,
+  validateSubmissionCode,
+  validateExaminerName,
+} from "./validation";
+import { enforceRateLimit } from "./rateLimits";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,41 +82,10 @@ async function generateStudentUid(ctx: MutationCtx): Promise<string> {
 
 async function requireExaminer(ctx: MutationCtx) {
   const examiner = await getCurrentExaminer(ctx);
-  if (!examiner) throw new Error("Only examiners can do this");
-  return examiner;
-}
-
-/**
- * Simple fixed-window rate limiter backed by the rateLimits table.
- * Returns false when the key's budget for the current window is exhausted.
- * Best-effort only: a failed counter write never blocks the caller.
- */
-async function checkRateLimit(
-  ctx: MutationCtx,
-  key: string,
-  limit: number,
-  windowMs: number,
-): Promise<boolean> {
-  try {
-    const now = Date.now();
-    const row = await ctx.db
-      .query("rateLimits")
-      .withIndex("by_key", (q) => q.eq("key", key))
-      .unique();
-    if (!row || now - row.windowStart >= windowMs) {
-      if (row) {
-        await ctx.db.patch(row._id, { windowStart: now, count: 1 });
-      } else {
-        await ctx.db.insert("rateLimits", { key, windowStart: now, count: 1 });
-      }
-      return true;
-    }
-    if (row.count >= limit) return false;
-    await ctx.db.patch(row._id, { count: row.count + 1 });
-    return true;
-  } catch {
-    return true; // never let limiter errors break the real flow
+  if (!examiner) {
+    throw new ConvexError("Only examiners can do this");
   }
+  return examiner;
 }
 
 /**
@@ -163,10 +135,12 @@ export const ensureExaminer = mutation({
   args: { pendingName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Not authenticated");
+    if (userId === null) throw new ConvexError("Not authenticated");
     const user = await ctx.db.get(userId);
     const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
-    const pendingName = args.pendingName?.trim();
+    const pendingName = args.pendingName
+      ? validateExaminerName(args.pendingName)
+      : undefined;
 
     const existing = await ctx.db
       .query("examiners")
@@ -221,10 +195,9 @@ export const ensureExaminer = mutation({
 export const setExaminerName = mutation({
   args: { name: v.string() },
   handler: async (ctx, args) => {
-    const name = args.name.trim();
-    if (!name) return { ok: false };
+    const name = validateExaminerName(args.name);
     const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Not authenticated");
+    if (userId === null) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db.get(userId);
     if (user) {
@@ -284,23 +257,17 @@ export const createRoom = mutation({
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
 
+    // Rate limit room creation per examiner (spam / resource cap).
+    await enforceRateLimit(ctx, "createRoomPerExaminer", {
+      key: examiner._id,
+      message: "You've created a lot of rooms recently.",
+    });
+
     // Validation — the UI checks too, but never trust the client.
-    const name = args.name.trim();
-    const prompt = args.prompt.trim();
-    if (!name || name.length > MAX_ROOM_NAME) {
-      throw new Error(`Room name must be 1–${MAX_ROOM_NAME} characters`);
-    }
-    if (!prompt || prompt.length > MAX_ROOM_PROMPT) {
-      throw new Error(`Prompt must be 1–${MAX_ROOM_PROMPT} characters`);
-    }
-    const durationMinutes = Math.floor(args.durationMinutes);
-    const enrolledLimit = Math.floor(args.enrolledLimit);
-    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 24 * 60) {
-      throw new Error("Duration must be between 1 and 1440 minutes");
-    }
-    if (!Number.isFinite(enrolledLimit) || enrolledLimit < 1 || enrolledLimit > 500) {
-      throw new Error("Enrolled limit must be between 1 and 500");
-    }
+    const name = validateRoomName(args.name);
+    const prompt = validateRoomPrompt(args.prompt);
+    const durationMinutes = validateDuration(args.durationMinutes);
+    const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);
 
     // Server-side CV-#### code, retried on collision (10 attempts).
     let code = "";
@@ -368,7 +335,7 @@ export const getRoomCounts = query({
     const examiner = await getCurrentExaminer(ctx);
     if (!examiner) return {};
 
-    const roomIds = args.roomIds.slice(0, MAX_COUNT_ROOMS);
+    const roomIds = args.roomIds.slice(0, MAX_ROOM_IDS_PER_QUERY);
     const counts: Record<string, { joined: number; submitted: number }> = {};
 
     for (const roomId of roomIds) {
@@ -405,27 +372,15 @@ export const updateRoom = mutation({
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
     const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
-    if (!room) throw new Error("Room not found");
+    if (!room) throw new ConvexError("Room not found");
     if (room.status !== "LIVE") {
-      throw new Error("Closed rooms cannot be edited");
+      throw new ConvexError("Closed rooms cannot be edited");
     }
 
-    const name = args.name.trim();
-    const prompt = args.prompt.trim();
-    if (!name || name.length > MAX_ROOM_NAME) {
-      throw new Error(`Room name must be 1–${MAX_ROOM_NAME} characters`);
-    }
-    if (!prompt || prompt.length > MAX_ROOM_PROMPT) {
-      throw new Error(`Prompt must be 1–${MAX_ROOM_PROMPT} characters`);
-    }
-    const durationMinutes = Math.floor(args.durationMinutes);
-    const enrolledLimit = Math.floor(args.enrolledLimit);
-    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 24 * 60) {
-      throw new Error("Duration must be between 1 and 1440 minutes");
-    }
-    if (!Number.isFinite(enrolledLimit) || enrolledLimit < 1 || enrolledLimit > 500) {
-      throw new Error("Enrolled limit must be between 1 and 500");
-    }
+    const name = validateRoomName(args.name);
+    const prompt = validateRoomPrompt(args.prompt);
+    const durationMinutes = validateDuration(args.durationMinutes);
+    const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);
 
     await ctx.db.patch(args.roomId, {
       name,
@@ -443,7 +398,7 @@ export const endRoom = mutation({
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
     const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
-    if (!room) throw new Error("Room not found");
+    if (!room) throw new ConvexError("Room not found");
     if (room.status === "CLOSED") return { ok: true };
     await ctx.db.patch(args.roomId, {
       status: "CLOSED",
@@ -463,7 +418,7 @@ export const deleteRoom = mutation({
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
     const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
-    if (!room) throw new Error("Room not found");
+    if (!room) throw new ConvexError("Room not found");
 
     const submissions = await ctx.db
       .query("submissions")
@@ -509,7 +464,14 @@ export const lookupRoomByCode = query({
   },
 });
 
-/** Public: join a room. Returns clientId + room details (incl. prompt). */
+/**
+ * Public: join a room. Returns clientId + room details (incl. prompt).
+ *
+ * Rate limiting (see rateLimits.ts for thresholds): a per-room-code window
+ * blunts code brute-forcing; a per-session bucket blunts rejoin spam from a
+ * single browser. Fresh joins (no session yet) are covered by the per-code
+ * limit — the whole class joining at once is unaffected.
+ */
 export const joinRoom = mutation({
   args: {
     code: v.string(),
@@ -518,47 +480,34 @@ export const joinRoom = mutation({
     existingClientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Rate limit: 5 join attempts/min per client session. Cheap check runs
-    // before any DB lookups so scripted spam dies at the gate. Legit refresh
-    // flows (1–2 attempts) never hit this.
-    const bucketKey = `join:${args.existingClientId ?? "new"}`;
-    if (
-      !(await checkRateLimit(
-        ctx,
-        bucketKey,
-        JOIN_LIMIT_PER_CLIENT,
-        JOIN_LIMIT_WINDOW_MS,
-      ))
-    ) {
-      return {
-        error: "Too many join attempts. Wait a minute and try again.",
-      };
-    }
+    // Reject malformed input FIRST — Convex transactions roll back rate-limit
+    // bookkeeping on throw, so invalid requests never burn anyone's quota.
+    const code = validateRoomCode(args.code);
+    const name = validateStudentName(args.name);
+    const regNo = validateStudentId(args.regNo);
+    const existingClientId = args.existingClientId
+      ? validateClientId(args.existingClientId)
+      : undefined;
 
-    // Validation / spam damping: reject malformed input with one cheap check
-    // before it ever hits the database.
-    const code = args.code.trim().toUpperCase();
-    if (!/^CV-\d{4}$/.test(code)) {
-      return {
-        error: 'Room codes look like "CV-1234". Double-check it with your examiner.',
-      };
-    }
-    const name = args.name.trim();
-    if (!name || name.length > MAX_STUDENT_NAME) {
-      return {
-        error: `Please enter your name (1–${MAX_STUDENT_NAME} characters).`,
-      };
-    }
-    if (args.existingClientId && args.existingClientId.length > 128) {
-      return { error: "Invalid session. Please join again." };
-    }
-    // Optional institutional ID (e.g. "24BCA10210") — validated loosely since
-    // formats vary by institution; only length and charset are enforced.
-    const regNo = args.regNo?.trim().toUpperCase();
-    if (regNo && !/^[A-Z0-9-]{3,24}$/.test(regNo)) {
-      return {
-        error: "Student ID should be 3–24 letters/numbers (e.g. 24BCA10210).",
-      };
+    // Per-code window: only consumes when the mutation completes (committed
+    // returns count; thrown errors roll back), which is exactly the behavior
+    // a brute-force guard needs.
+    await enforceRateLimit(ctx, "joinPerCode", {
+      key: code,
+      message: "Too many join attempts for this room code.",
+    });
+
+    if (existingClientId) {
+      const allowed = await enforceRateLimit(ctx, "joinPerSession", {
+        key: existingClientId,
+        silent: true,
+        message: "Too many join attempts. Wait a moment and try again.",
+      });
+      if (!allowed) {
+        return {
+          error: "Too many join attempts. Wait a minute and try again.",
+        };
+      }
     }
 
     const room = await ctx.db
@@ -578,7 +527,7 @@ export const joinRoom = mutation({
 
     // Capacity: enforce the room's enrolled limit server-side. Rejoining
     // students (same clientId → same row) never count against it.
-    if (!args.existingClientId) {
+    if (!existingClientId) {
       const joined = await ctx.db
         .query("students")
         .withIndex("by_room", (q) => q.eq("roomId", room._id))
@@ -593,11 +542,11 @@ export const joinRoom = mutation({
     // Rejoin with the same clientId → same student row (refresh-safe).
     // A clientId only maps to one student row, so joining a different room
     // always mints a fresh one.
-    if (args.existingClientId) {
+    if (existingClientId) {
       const existing = await ctx.db
         .query("students")
         .withIndex("by_client_id", (q) =>
-          q.eq("clientId", args.existingClientId as string),
+          q.eq("clientId", existingClientId),
         )
         .unique();
       if (existing && existing.roomId === room._id) {
@@ -671,7 +620,11 @@ async function upsertSubmission(
  *
  * Auth is the clientId (a 128-bit server-minted token stored per-browser);
  * a student can only ever write to their own row — never another student's.
- * A 1s write-throttle damps scripted/rapid-fire autosave spam.
+ *
+ * Rate limits (see rateLimits.ts): autosave gets a generous per-student token
+ * bucket (silent failure — the client keeps the draft dirty and retries);
+ * final submit gets a smaller bucket and throws a friendly ConvexError.
+ * Unknown clientIds are rejected before consuming any quota.
  */
 export const saveSubmission = mutation({
   args: {
@@ -680,24 +633,28 @@ export const saveSubmission = mutation({
     isFinal: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (args.clientId.length > 128) {
-      return { error: "Invalid session — please rejoin the room." } as const;
-    }
-    if (args.code.length > MAX_SUBMISSION_CODE) {
-      return { error: "Submission is too large (64KB limit)." } as const;
-    }
+    const clientId = validateClientId(args.clientId);
+    const code = validateSubmissionCode(args.code);
 
     const student = await ctx.db
       .query("students")
-      .withIndex("by_client_id", (q) => q.eq("clientId", args.clientId))
+      .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
       .unique();
     if (!student) {
       return { error: "Student not found — please rejoin the room." } as const;
     }
-    const room = await ctx.db.get(student.roomId);
-    if (!room) return { error: "Room not found." } as const;
 
     if (args.isFinal) {
+      // Submit: loud limit — a friendly error the student can act on.
+      await enforceRateLimit(ctx, "submitPerStudent", {
+        key: student._id,
+        message: "Too many submit attempts.",
+      });
+
+      const room = await ctx.db.get(student.roomId);
+      if (!room) {
+        return { error: "Room not found — contact your examiner." } as const;
+      }
       // Late submits are accepted but flagged — clock drift should never
       // silently reject a student's work.
       const elapsed = Date.now() - room.startedAt;
@@ -707,13 +664,16 @@ export const saveSubmission = mutation({
         ctx,
         room._id,
         student._id,
-        args.code,
+        code,
         true,
       );
       return { submissionId, late } as const;
     }
 
-    // Autosave: blocked once final or the room is closed.
+    // Autosave path.
+    const room = await ctx.db.get(student.roomId);
+    if (!room) return { error: "Room not found." } as const;
+
     const existing = await ctx.db
       .query("submissions")
       .withIndex("by_student", (q) => q.eq("studentId", student._id))
@@ -731,11 +691,24 @@ export const saveSubmission = mutation({
       return { submissionId: existing._id } as const;
     }
 
+    // Rate limit autosave per student. Silent: returning an error keeps the
+    // client's draft dirty so its next autosave tick retries naturally.
+    const allowed = await enforceRateLimit(ctx, "autosavePerStudent", {
+      key: student._id,
+      silent: true,
+      message: "Saving too fast.",
+    });
+    if (!allowed) {
+      return {
+        error: "Slow down a little — your work is still in the editor.",
+      } as const;
+    }
+
     const submissionId = await upsertSubmission(
       ctx,
       room._id,
       student._id,
-      args.code,
+      code,
       false,
     );
     return { submissionId } as const;
@@ -746,7 +719,7 @@ export const saveSubmission = mutation({
 export const getMySubmission = query({
   args: { clientId: v.string() },
   handler: async (ctx, args) => {
-    if (args.clientId.length > 128) return null;
+    if (!args.clientId || args.clientId.length > 128) return null;
     const student = await ctx.db
       .query("students")
       .withIndex("by_client_id", (q) => q.eq("clientId", args.clientId))

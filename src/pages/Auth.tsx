@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "convex/react";
+import { getErrorMessage } from "@/lib/errors";
 
 function resolveRedirectAfterAuth(
   returnTo: string | null,
@@ -135,10 +136,13 @@ function AuthCard() {
       setVerifying(true);
       setStep("code");
     } catch (err) {
+      // ConvexError (e.g. rate limits) carries a safe user-facing message;
+      // everything else (internal errors, stack traces) becomes generic.
       setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to send the verification code. Please try again.",
+        getErrorMessage(
+          err,
+          "Failed to send the verification code. Please try again.",
+        ),
       );
     } finally {
       setIsLoading(false);
@@ -177,9 +181,13 @@ function AuthCard() {
       }
 
       navigate(redirect, { replace: true });
-    } catch {
+    } catch (err) {
       setVerifying(false);
-      setError("The verification code you entered is incorrect.");
+      // Rate-limit errors carry actionable messages; all other failures read
+      // as a wrong code (the overwhelmingly common case).
+      setError(
+        getErrorMessage(err, "The verification code you entered is incorrect."),
+      );
       setOtp("");
     } finally {
       setIsLoading(false);

@@ -4,6 +4,7 @@ import { Loader2, GraduationCap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { useNavigate } from "react-router";
+import { getErrorMessage } from "@/lib/errors";
 
 export function getStudentIdentity(roomCode: string): {
   clientId: string | null;
@@ -94,8 +95,10 @@ export default function StudentPortal() {
         result.regNo ?? regNo.trim().toUpperCase(),
       );
       navigate(`/exam/${encodeURIComponent(trimmedCode)}`);
-    } catch {
-      setError("Could not join the room. Please try again.");
+    } catch (err) {
+      // ConvexError messages (rate limits, validation) are safe to show;
+      // anything internal becomes generic.
+      setError(getErrorMessage(err, "Could not join the room. Please try again."));
     } finally {
       setJoining(false);
     }

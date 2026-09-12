@@ -17,6 +17,7 @@ import {
   persistStudentUid,
   setStudentIdentity,
 } from "./StudentPortal";
+import { getErrorMessage } from "@/lib/errors";
 
 function fmtClock(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -142,6 +143,7 @@ export default function Exam() {
   const [fullscreen, setFullscreen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [lateFlag, setLateFlag] = useState(false);
   const autoRef = useRef(false);
   const lockedRef = useRef(false);
@@ -215,15 +217,21 @@ export default function Exam() {
       });
       if (res.error) {
         autoRef.current = false; // allow the auto-submit effect to retry
+        setSubmitError(res.error);
         return;
       }
+      setSubmitError(null);
       setLateFlag(res.late === true);
       setConfirming(false);
       setDirty(false);
       setSavedAt(Date.now());
-    } catch {
+    } catch (err) {
       autoRef.current = false; // allow the auto-submit effect to retry
-      // keep the editor unlocked so the student can retry the submit
+      // Rate limits / validation arrive as ConvexError with safe messages;
+      // anything internal becomes generic. Never a raw stack trace.
+      setSubmitError(
+        getErrorMessage(err, "Something went wrong. Please try again."),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -434,6 +442,12 @@ export default function Exam() {
             </div>
           ) : null}
 
+          {submitError && !confirming && (
+            <div className="cv-banner cv-banner-warn" role="alert">
+              {submitError}
+            </div>
+          )}
+
           <QuestionBox prompt={roomState.prompt} />
 
           <div
@@ -521,6 +535,11 @@ export default function Exam() {
         <p className="cv-modal-sub" style={{ marginBottom: 0 }}>
           Time remaining: {fmtClock(Math.max(0, endsAt - Date.now()))}
         </p>
+        {submitError && (
+          <span className="cv-error" style={{ marginTop: 12, display: "block" }}>
+            {submitError}
+          </span>
+        )}
       </Modal>
     </CodeVenuePage>
   );
@@ -554,8 +573,10 @@ export default function Exam() {
         setStudentUid(uid || null);
         setClientId(res.clientId);
       }
-    } catch {
-      setRejoinError("Could not rejoin. Please try again.");
+      setRejoinError(null);
+    } catch (err) {
+      // ConvexError messages (rate limits, validation) are safe to show.
+      setRejoinError(getErrorMessage(err, "Could not rejoin. Please try again."));
     } finally {
       setRejoining(false);
     }

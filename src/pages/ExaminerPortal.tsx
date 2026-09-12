@@ -26,6 +26,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router";
 import { PENDING_NAME_KEY } from "@/pages/Auth";
+import { getErrorMessage } from "@/lib/errors";
 
 type Room = Doc<"rooms">;
 type Counts = Record<string, { joined: number; submitted: number }>;
@@ -271,7 +272,9 @@ export default function ExaminerPortal() {
       setEditRoom(null);
       setForm(EMPTY_FORM);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Something went wrong.");
+      // ConvexError (rate limits, validation) carries a safe message; other
+      // failures — including internal errors — become a generic string.
+      setFormError(getErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setSaving(false);
     }
