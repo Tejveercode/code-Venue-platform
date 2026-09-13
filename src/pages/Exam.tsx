@@ -112,7 +112,13 @@ export default function Exam() {
   // UID (e.g. S-7F3K2Q) when no ID was entered.
   const [studentUid, setStudentUid] = useState<string | null>(null);
 
-  const roomState = useQuery(api.exams.getExamRoomState, code ? { code } : "skip");
+  // Capability-gated state (see getExamRoomState): the prompt/timer/count
+  // fields unlock only because we present this browser's join token; without
+  // it the query returns a safe subset (registered: false).
+  const roomState = useQuery(
+    api.exams.getExamRoomState,
+    code ? { code, clientId: clientId ?? undefined } : "skip",
+  );
   const mySub = useQuery(
     api.exams.getMySubmission,
     clientId ? { clientId } : "skip",
@@ -324,10 +330,10 @@ export default function Exam() {
           <div className="cv-center">
             <div className="cv-card cv-auth-card">
               <h1 className="cv-auth-title">
-                {roomState.name} <ClosedPill />
+                {code} <ClosedPill />
               </h1>
               <span className="cv-error">
-                {`"${roomState.name}" has already ended and is no longer accepting students.`}
+                {`This exam (code ${code}) has already ended and is no longer accepting students.`}
               </span>
               <Link to="/student-portal" className="cv-btn cv-btn-primary cv-btn-block">
                 Back to join page
@@ -348,8 +354,8 @@ export default function Exam() {
             <div className="cv-card cv-auth-card">
               <h1 className="cv-auth-title">Rejoin exam</h1>
               <p className="cv-auth-sub">
-                This browser isn't linked to "{roomState.name}" yet. Enter your
-                name to continue the exam.
+                This browser isn't linked to this exam yet. Enter your name to
+                continue.
               </p>
               {rejoinError && <span className="cv-error">{rejoinError}</span>}
               <form onSubmit={handleRejoin}>

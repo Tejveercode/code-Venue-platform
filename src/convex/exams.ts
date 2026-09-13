@@ -12,6 +12,8 @@ import {
   MAX_COUNT_ROOMS,
   MAX_ROOM_IDS_PER_QUERY,
   AUTOSAVE_MIN_INTERVAL_MS,
+  MAX_CLIENT_ID,
+  ROOM_CODE_PATTERN,
 } from "./limits";
 import {
   validateRoomName,
@@ -512,21 +514,6 @@ export const deleteRoom = mutation({
 // Student join
 // ---------------------------------------------------------------------------
 
-/** Public: validate a room code (name + status only, no prompt). */
-export const lookupRoomByCode = query({
-  args: { code: v.string() },
-  handler: async (ctx, args) => {
-    const code = args.code.trim().toUpperCase();
-    if (!/^CV-\d{4}$/.test(code)) return null;
-    const room = await ctx.db
-      .query("rooms")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique();
-    if (!room) return null;
-    return { name: room.name, status: room.status };
-  },
-});
-
 /**
  * Public: join a room. Returns clientId + room details (incl. prompt).
  *
@@ -855,31 +842,85 @@ export const getRoomSubmissions = query({
   },
 });
 
-/** Public: room state for the exam page (prompt, timer basis, status). */
+/**
+ * Public: room state for the exam page (prompt, timer basis, status).
+ *
+ * Capability-gated (audit fix #28 — public-query enumeration): the full state
+ * (question text, timer basis, joined count, capacity) is returned ONLY to a
+ * caller presenting a valid clientId — the 128-bit token joinRoom minted for
+ * a student in THIS room. Everyone else gets `{ registered: false, status }`,
+ * so sweeping all 10,000 CV-#### codes reveals nothing beyond whether a code
+ * is live.
+ *
+ * Why not a numeric rate limit (e.g. 600/min global) as first proposed: rate
+ * limit CONSUMPTION writes state, and Convex queries are read-only
+ * transactions — the limiter's `limit()` requires a mutation ctx (its
+ * `check()` variant never consumes). A per-minute cap is therefore
+ * unenforceable inside a query; gating the sensitive fields is strictly
+ * stronger, since a distributed scanner would merely be slowed by a cap.
+ *
+ * `lookupRoomByCode` (name+status preview, previously unlimited) was deleted
+ * in the same fix: it had zero frontend callers and exposed strictly more
+ * than this function's safe subset.
+ */
 export const getExamRoomState = query({
-  args: { code: v.string() },
+  args: {
+    code: v.string(),
+    /** Capability token minted by joinRoom. Omitted/invalid → safe subset. */
+    clientId: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const code = args.code.trim().toUpperCase();
-    if (!/^CV-\d{4}$/.test(code)) return null;
+    if (!ROOM_CODE_PATTERN.test(code)) return null;
     const room = await ctx.db
       .query("rooms")
       .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
     if (!room) return null;
-    const students = await ctx.db
-      .query("students")
-      .withIndex("by_room", (q) => q.eq("roomId", room._id))
-      .take(room.enrolledLimit + 1);
+
+    const clientId = args.clientId;
+    if (clientId && clientId.length <= MAX_CLIENT_ID) {
+      const student = await ctx.db
+        .query("students")
+        .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
+        .unique();
+      // The token must belong to a student in THIS room — a clientId is
+      // scoped to a single room, so it can never unlock another room's data.
+      if (student && student.roomId === room._id) {
+        const students = await ctx.db
+          .query("students")
+          .withIndex("by_room", (q) => q.eq("roomId", room._id))
+          .take(room.enrolledLimit + 1);
+        return {
+          registered: true,
+          roomId: room._id,
+          name: room.name,
+          prompt: room.prompt,
+          durationMinutes: room.durationMinutes,
+          status: room.status,
+          startedAt: room.startedAt,
+          endedAt: room.endedAt ?? null,
+          joined: students.length,
+          enrolledLimit: room.enrolledLimit,
+        };
+      }
+    }
+
+    // Safe subset for callers without a valid capability token. Placeholder
+    // values (not nulls) keep the response shape stable for the existing
+    // client type; unregistered visitors only ever render the rejoin/closed
+    // cards, which never read prompt/timer fields.
     return {
-      roomId: room._id,
-      name: room.name,
-      prompt: room.prompt,
-      durationMinutes: room.durationMinutes,
+      registered: false,
+      roomId: null,
+      name: code,
+      prompt: "",
+      durationMinutes: 0,
       status: room.status,
-      startedAt: room.startedAt,
-      endedAt: room.endedAt ?? null,
-      joined: students.length,
-      enrolledLimit: room.enrolledLimit,
+      startedAt: 0,
+      endedAt: null,
+      joined: 0,
+      enrolledLimit: 0,
     };
   },
 });

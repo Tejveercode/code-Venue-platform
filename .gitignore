@@ -1,4 +1,8 @@
-.env.local
+# Secrets — never commit any env file (audit fix #02). .env.example is the
+# only tracked exception (documented placeholders, no real values).
+.env*
+!.env.example
+
 node_modules
 dist
 src/convex/_generated

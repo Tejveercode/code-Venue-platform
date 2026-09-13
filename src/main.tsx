@@ -58,10 +58,13 @@ class RootErrorBoundary extends React.Component<
 > {
   state = { hasError: false, message: "", stack: "" };
   static getDerivedStateFromError(error: Error) {
+    // Security (audit fix #12): the stack is captured in DEV only — production
+    // crashes must never render source paths/frame details into the DOM. The
+    // user-facing message stays identical in both environments.
     return {
       hasError: true,
       message: error.message || "Unknown runtime error",
-      stack: error.stack || "",
+      stack: import.meta.env.DEV ? error.stack || "" : "",
     };
   }
   componentDidCatch(err: Error) {
