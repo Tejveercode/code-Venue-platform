@@ -81,6 +81,19 @@ export const RATE_LIMITS = {
     rate: 20,
     period: HOUR,
   },
+
+  // --- Exam-session monitoring event logging --------------------------------
+  // A real student cannot plausibly generate more than a few tab-switches or
+  // clipboard actions per second. 5-event burst, 10/min refill blunts a
+  // malicious client spamming thousands of fake events while leaving genuine
+  // behavior untouched. Silent mode: monitoring must never disrupt the exam
+  // itself — an over-limit event is dropped, not surfaced as an error.
+  violationEventPerStudent: {
+    kind: "token bucket",
+    rate: 10,
+    period: MINUTE,
+    capacity: 5,
+  },
 } satisfies Record<string, RateLimitConfig>;
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, RATE_LIMITS);

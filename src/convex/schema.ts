@@ -58,6 +58,9 @@ const schema = defineSchema(
       startedAt: v.number(),
       endedAt: v.optional(v.number()),
       examinerId: v.id("examiners"),
+      // Exam-session monitoring. 0 or absent = zero-tolerance (first
+      // violation flags the student); >0 = warnings until exceeded.
+      violationLimit: v.optional(v.number()),
     })
       .index("by_code", ["code"])
       .index("by_examiner", ["examinerId"]),
@@ -76,6 +79,12 @@ const schema = defineSchema(
       name: v.string(),
       joinedAt: v.number(),
       roomId: v.id("rooms"),
+      // Monitoring tallies (server-maintained; clients never send counts).
+      violationCount: v.optional(v.number()),
+      // Zero-tolerance flag: first violation marked this student suspicious.
+      flagged: v.optional(v.boolean()),
+      // Server auto-submitted this student for exceeding the violation limit.
+      autoSubmittedAt: v.optional(v.number()),
     })
       .index("by_client_id", ["clientId"])
       .index("by_uid", ["studentUid"])
@@ -93,6 +102,23 @@ const schema = defineSchema(
     })
       .index("by_student", ["studentId"])
       .index("by_room", ["roomId"]),
+
+    // One timestamped exam-session monitoring event per occurrence, written
+    // by the server as the client reports events. Contents never include
+    // clipboard data — only the event type and time.
+    violationEvents: defineTable({
+      roomId: v.id("rooms"),
+      studentId: v.id("students"),
+      type: v.union(
+        v.literal("blur"), // tab switch / window blur
+        v.literal("paste"), // paste into the code editor
+        v.literal("copy"), // copy out of the code editor
+        v.literal("rejoin"), // exam page load for this clientId (incl. first)
+      ),
+      at: v.number(),
+    })
+      .index("by_room", ["roomId"])
+      .index("by_student", ["studentId"]),
   },
   {
     schemaValidation: false,

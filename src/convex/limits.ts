@@ -20,6 +20,16 @@ export const MAX_DURATION_MINUTES = 24 * 60;
 export const MIN_ENROLLED_LIMIT = 1;
 export const MAX_ENROLLED_LIMIT = 500;
 
+// ---- Exam-session monitoring ------------------------------------------------
+// Per-room violation limit (0 = zero-tolerance: first violation flags the
+// student). Stored on the room, editable only by the owning examiner.
+export const MAX_VIOLATION_LIMIT = 999;
+// Rejoin timestamps returned per student in the examiner's breakdown view.
+export const MAX_REJOIN_TIMESTAMPS_RETURNED = 50;
+// Safety cap on a student's event rows within one tally read (events are
+// rate-limited server-side, so this is unreachable in practice).
+export const MAX_VIOLATION_EVENTS_READ = 5_000;
+
 /** Room codes are exactly "CV-" + 4 digits (e.g. "CV-1234"). */
 export const ROOM_CODE_PATTERN = /^CV-\d{4}$/;
 /** Optional institutional ID (e.g. "24BCA10210"): 3–24 letters/digits/hyphens. */

@@ -12,6 +12,7 @@ import {
   MAX_ENROLLED_LIMIT,
   ROOM_CODE_PATTERN,
   STUDENT_ID_PATTERN,
+  MAX_VIOLATION_LIMIT,
 } from "./limits";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,20 @@ export function validateSubmissionCode(raw: string): string {
     reject("Submission is too large (64KB limit).");
   }
   return raw;
+}
+
+/**
+ * Room-level violation limit for exam-session monitoring.
+ * 0 (or blank from the UI) = zero-tolerance: the first violation flags the
+ * student. >0 = warnings until the student exceeds the count.
+ */
+export function validateViolationLimit(raw: number | undefined): number {
+  if (raw === undefined) return 0;
+  const limit = Math.floor(raw);
+  if (!Number.isFinite(limit) || limit < 0 || limit > MAX_VIOLATION_LIMIT) {
+    reject(`Violation limit must be between 0 and ${MAX_VIOLATION_LIMIT} (0 = zero-tolerance).`);
+  }
+  return limit;
 }
 
 /** Examiner display name. */

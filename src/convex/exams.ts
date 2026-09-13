@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   mutation,
   query,
@@ -14,6 +14,8 @@ import {
   AUTOSAVE_MIN_INTERVAL_MS,
   MAX_CLIENT_ID,
   ROOM_CODE_PATTERN,
+  MAX_VIOLATION_EVENTS_READ,
+  MAX_REJOIN_TIMESTAMPS_RETURNED,
 } from "./limits";
 import {
   validateRoomName,
@@ -26,6 +28,7 @@ import {
   validateClientId,
   validateSubmissionCode,
   validateExaminerName,
+  validateViolationLimit,
 } from "./validation";
 import { enforceRateLimit } from "./rateLimits";
 
@@ -318,6 +321,7 @@ export const createRoom = mutation({
     prompt: v.string(),
     durationMinutes: v.number(),
     enrolledLimit: v.number(),
+    violationLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
@@ -333,6 +337,7 @@ export const createRoom = mutation({
     const prompt = validateRoomPrompt(args.prompt);
     const durationMinutes = validateDuration(args.durationMinutes);
     const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);
+    const violationLimit = validateViolationLimit(args.violationLimit);
 
     // Server-side CV-#### code, retried on collision (10 attempts).
     let code = "";
@@ -359,6 +364,7 @@ export const createRoom = mutation({
       enrolledLimit,
       startedAt: now,
       examinerId: examiner._id,
+      ...(violationLimit > 0 ? { violationLimit } : {}),
     });
     return { roomId, code };
   },
@@ -433,6 +439,7 @@ export const updateRoom = mutation({
     prompt: v.string(),
     durationMinutes: v.number(),
     enrolledLimit: v.number(),
+    violationLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const examiner = await requireExaminer(ctx);
@@ -446,12 +453,16 @@ export const updateRoom = mutation({
     const prompt = validateRoomPrompt(args.prompt);
     const durationMinutes = validateDuration(args.durationMinutes);
     const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);
+    const violationLimit = validateViolationLimit(args.violationLimit);
 
     await ctx.db.patch(args.roomId, {
       name,
       prompt,
       durationMinutes,
       enrolledLimit,
+      ...(violationLimit > 0
+        ? { violationLimit }
+        : { violationLimit: undefined }),
     });
     return { ok: true };
   },
@@ -501,12 +512,289 @@ export const deleteRoom = mutation({
       await ctx.db.delete(student._id);
     }
 
+    // Monitoring events are room-scoped too — remove them with everything
+    // else so no orphan rows outlive the room.
+    const events = await ctx.db
+      .query("violationEvents")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const event of events) {
+      await ctx.db.delete(event._id);
+    }
+
     await ctx.db.delete(args.roomId);
     return {
       ok: true as const,
       deletedSubmissions: submissions.length,
       deletedStudents: students.length,
     };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Exam-session monitoring (detection & logging, not prevention)
+//
+// Threat model, stated plainly: no web app can technically block tab
+// switching or clipboard use. Everything here is detection and response —
+// the server tallies events the client reports, decides when a room's
+// violation limit is crossed, and auto-submits the student itself. Clients
+// never send counts or flags, only single-event reports; the tallies on the
+// student row are derived server-side from the append-only event log.
+// ---------------------------------------------------------------------------
+
+const VIOLATION_TYPES = ["blur", "paste", "copy", "rejoin"] as const;
+/** Types that count toward the violation limit (rejoin is logged only). */
+const ENFORCED_TYPES: ReadonlySet<string> = new Set(["blur", "paste", "copy"]);
+
+type ViolationType = (typeof VIOLATION_TYPES)[number];
+
+function isViolationType(raw: string): raw is ViolationType {
+  return (VIOLATION_TYPES as readonly string[]).includes(raw);
+}
+
+/**
+ * Load the calling student from their clientId — the exam-side equivalent of
+ * requireOwnedRoom. Returns null when the token is unknown; a student row
+ * can only ever be reached through its own secret token, so a client can
+ * never act on another student's session.
+ */
+async function requireStudentByClient(
+  ctx: MutationCtx,
+  clientId: string,
+): Promise<{ student: Doc<"students">; room: Doc<"rooms"> } | null> {
+  const student = await ctx.db
+    .query("students")
+    .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
+    .unique();
+  if (!student) return null;
+  const room = await ctx.db.get(student.roomId);
+  if (!room) return null;
+  return { student, room };
+}
+
+/**
+ * Append one monitoring event for the student's room and update their
+ * server-side tally. Shared by the public log mutation and the rejoin
+ * counter. All decisions (warning vs auto-submit) happen here, on the
+ * server, from the event log — never from client-supplied state.
+ *
+ * Returns the client-facing outcome: warnings left before auto-submit, and
+ * whether this event pushed the student over the limit.
+ */
+async function recordViolationEvent(
+  ctx: MutationCtx,
+  student: Doc<"students">,
+  room: Doc<"rooms">,
+  type: ViolationType,
+  at: number,
+): Promise<{
+  enforced: boolean;
+  counted: number;
+  limit: number;
+  warningsLeft: number | null;
+  overLimit: boolean;
+}> {
+  await ctx.db.insert("violationEvents", { roomId: room._id, studentId: student._id, type, at });
+
+  // Rejoin is audit-only: it never trips warnings, flags, or auto-submit.
+  if (!ENFORCED_TYPES.has(type)) {
+    return { enforced: false, counted: 0, limit: 0, warningsLeft: null, overLimit: false };
+  }
+
+  const counted = (student.violationCount ?? 0) + 1;
+  const limit = room.violationLimit ?? 0;
+  const overLimit = limit > 0 && counted > limit;
+
+  await ctx.db.patch(student._id, {
+    violationCount: counted,
+    // Zero-tolerance rooms (limit 0/absent): the first violation marks the
+    // student suspicious for the examiner. No student-visible warning.
+    ...(limit === 0 ? { flagged: true } : {}),
+    ...(overLimit ? { autoSubmittedAt: at } : {}),
+  });
+
+  // Zero-tolerance: log and flag silently — no enforcement message.
+  if (limit === 0) {
+    return { enforced: true, counted, limit, warningsLeft: null, overLimit: false };
+  }
+
+  return {
+    enforced: true,
+    counted,
+    limit,
+    // Under the limit: "2 of 3" -> 1 warning left. At the limit: 0 left.
+    // Over: enforcement already ran; overLimit tells the client to stop.
+    warningsLeft: Math.max(0, limit - counted),
+    overLimit,
+  };
+}
+
+/**
+ * Server-driven enforcement: submit the student's current draft as final and
+ * lock their session. Runs inside the same transaction that recorded the
+ * over-limit event, so an auto-submit can never be lost or duplicated.
+ */
+async function enforceAutoSubmit(
+  ctx: MutationCtx,
+  student: Doc<"students">,
+  code: string,
+  at: number,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("submissions")
+    .withIndex("by_student", (q) => q.eq("studentId", student._id))
+    .unique();
+  if (existing?.isFinal) return; // already submitted — nothing to do
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      code,
+      isFinal: true,
+      updatedAt: at,
+      submittedAt: existing.submittedAt ?? at,
+    });
+    return;
+  }
+  await ctx.db.insert("submissions", {
+    code,
+    isFinal: true,
+    updatedAt: at,
+    submittedAt: at,
+    roomId: student.roomId,
+    studentId: student._id,
+  });
+}
+
+/**
+ * Report a single exam-session event (blur / paste / copy). The client sends
+ * one call per occurrence with NO counts and NO outcomes; the server logs
+ * the event, maintains the tally, and decides enforcement itself.
+ *
+ * Ownership: the mutation only ever touches the student row that owns the
+ * calling clientId (see requireStudentByClient) — the same pattern as
+ * requireOwnedRoom on the examiner side. Unknown tokens are rejected before
+ * consuming any quota.
+ *
+ * Clipboard privacy: the event type and time are recorded. Pasted or copied
+ * CONTENT is deliberately never sent, logged, or stored.
+ */
+export const logViolationEvent = mutation({
+  args: {
+    clientId: v.string(),
+    type: v.string(),
+    currentCode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const clientId = validateClientId(args.clientId);
+    if (!isViolationType(args.type) || args.type === "rejoin") {
+      throw new ConvexError("Unknown event type.");
+    }
+    const code = validateSubmissionCode(args.currentCode);
+
+    const found = await requireStudentByClient(ctx, clientId);
+    if (!found) {
+      return { error: "Student not found — please rejoin the room." } as const;
+    }
+    const { student, room } = found;
+
+    // Cap event spam: a real student cannot generate more than a few
+    // tab-switches per second. Silent mode — monitoring must never disrupt
+    // the exam, so an over-limit report is dropped, not surfaced.
+    const allowed = await enforceRateLimit(ctx, "violationEventPerStudent", {
+      key: student._id,
+      silent: true,
+      message: "Too many events.",
+    });
+    if (!allowed) {
+      return { dropped: true } as const;
+    }
+
+    const outcome = await recordViolationEvent(ctx, student, room, args.type, Date.now());
+
+    if (outcome.overLimit) {
+      // Server-side enforcement — the client never triggers this.
+      await enforceAutoSubmit(ctx, student, code, Date.now());
+      return { overLimit: true } as const;
+    }
+    return outcome;
+  },
+});
+
+/**
+ * Count one exam-page load for this clientId (called on mount; includes the
+ * very first join). Logged for the examiner's audit trail; rejoins never
+ * count toward the violation limit — otherwise zero-tolerance rooms would
+ * flag every student the moment they open the page.
+ */
+export const logRejoinEvent = mutation({
+  args: { clientId: v.string() },
+  handler: async (ctx, args) => {
+    const clientId = validateClientId(args.clientId);
+    const found = await requireStudentByClient(ctx, clientId);
+    if (!found) return { error: "Student not found — please rejoin the room." } as const;
+    await recordViolationEvent(ctx, found.student, found.room, "rejoin", Date.now());
+    return { ok: true } as const;
+  },
+});
+
+/**
+ * Examiner's live monitoring view for one room: per-student violation state
+ * plus a per-type breakdown and recent rejoin timestamps. Owner-only.
+ * Reactive on the clients' side — Convex pushes updates within seconds.
+ */
+export const getRoomMonitoring = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const examiner = await getCurrentExaminer(ctx);
+    if (!examiner) return { error: "Not authenticated" } as const;
+    const room = await requireOwnedRoom(ctx, args.roomId, examiner._id);
+    if (!room) return { error: "Room not found" } as const;
+
+    const students = await ctx.db
+      .query("students")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .take(room.enrolledLimit + 1);
+
+    const events = await ctx.db
+      .query("violationEvents")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .take(MAX_VIOLATION_EVENTS_READ);
+
+    const byStudent = new Map<string, Doc<"violationEvents">[]>();
+    for (const event of events) {
+      const list = byStudent.get(event.studentId) ?? [];
+      list.push(event);
+      byStudent.set(event.studentId, list);
+    }
+
+    const rows = students.map((student) => {
+      const list = (byStudent.get(student._id) ?? []).sort((a, b) => a.at - b.at);
+      const count = (t: ViolationType) => list.filter((e) => e.type === t).length;
+      const rejoins = list
+        .filter((e) => e.type === "rejoin")
+        .slice(-MAX_REJOIN_TIMESTAMPS_RETURNED)
+        .map((e) => e.at);
+      return {
+        studentId: student._id,
+        name: student.name,
+        studentUid: student.studentUid,
+        regNo: student.regNo ?? null,
+        violationCount: student.violationCount ?? 0,
+        flagged: student.flagged === true,
+        autoSubmittedAt: student.autoSubmittedAt ?? null,
+        breakdown: {
+          blur: count("blur"),
+          paste: count("paste"),
+          copy: count("copy"),
+          rejoin: count("rejoin"),
+        },
+        rejoins,
+      };
+    });
+
+    return {
+      room: { violationLimit: room.violationLimit ?? 0, status: room.status },
+      rows,
+    } as const;
   },
 });
 
@@ -902,6 +1190,7 @@ export const getExamRoomState = query({
           endedAt: room.endedAt ?? null,
           joined: students.length,
           enrolledLimit: room.enrolledLimit,
+          violationLimit: room.violationLimit ?? 0,
         };
       }
     }
@@ -921,6 +1210,7 @@ export const getExamRoomState = query({
       endedAt: null,
       joined: 0,
       enrolledLimit: 0,
+      violationLimit: 0,
     };
   },
 });
