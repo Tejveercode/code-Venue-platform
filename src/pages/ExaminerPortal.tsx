@@ -32,7 +32,7 @@ type Room = Doc<"rooms">;
 type Counts = Record<string, { joined: number; submitted: number }>;
 
 type MonitoringRow = {
-  studentId: string;
+  studentId: Id<"students">;
   name: string;
   studentUid: string;
   regNo: string | null;
