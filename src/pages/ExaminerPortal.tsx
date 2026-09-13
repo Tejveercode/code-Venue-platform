@@ -13,9 +13,9 @@ import {
 } from "@/components/venue/ui";
 import { format } from "date-fns";
 import {
+  Check,
   ChevronRight,
   Copy,
-  Check,
   Loader2,
   Pencil,
   Plus,
@@ -25,7 +25,6 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router";
-import { PENDING_NAME_KEY } from "@/pages/Auth";
 import { getErrorMessage } from "@/lib/errors";
 
 type Room = Doc<"rooms">;
@@ -81,6 +80,7 @@ export default function ExaminerPortal() {
 
   const ensureExaminer = useMutation(api.exams.ensureExaminer);
   const markWelcomed = useMutation(api.exams.markExaminerWelcomed);
+  const updateName = useMutation(api.exams.updateExaminerName);
   const createRoom = useMutation(api.exams.createRoom);
   const updateRoom = useMutation(api.exams.updateRoom);
   const endRoomMutation = useMutation(api.exams.endRoom);
@@ -90,18 +90,6 @@ export default function ExaminerPortal() {
   // first-ever visit. `undefined` means the query is still loading.
   const [examinerEnsured, setExaminerEnsured] = useState(false);
   const ensureInFlight = useRef(false);
-
-  // The typed signup name stashed by /auth (covers the race where the
-  // examiner row is created before setExaminerName lands, and heals rows
-  // that were created with the email fallback). Read once per mount so one
-  // signup is never counted as two visits.
-  const pendingName = useMemo(() => {
-    try {
-      return sessionStorage.getItem(PENDING_NAME_KEY) ?? undefined;
-    } catch {
-      return undefined;
-    }
-  }, []);
 
   // First-ever visit ⇒ new-user greeting. The `welcomed` flag on the
   // examiner row is backend-computed so it survives tab-closes and reloads;
@@ -130,6 +118,13 @@ export default function ExaminerPortal() {
   const [endRoom, setEndRoom] = useState<Room | null>(null);
   const [ending, setEnding] = useState(false);
 
+  // Profile (Account Settings) state — the only way to change name later.
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+
   // Delete-room confirmation state (permanent, data included)
   const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -152,18 +147,7 @@ export default function ExaminerPortal() {
     if (examiner === null && !examinerEnsured && !ensureInFlight.current) {
       ensureInFlight.current = true;
       setExaminerEnsured(true);
-      void ensureExaminer({ pendingName })
-        .then(() => {
-          if (pendingName) {
-            // The row exists now — clear the stash so this name is only ever
-            // consumed once (a later tab-open is a *return* visit).
-            try {
-              sessionStorage.removeItem(PENDING_NAME_KEY);
-            } catch {
-              // ignore storage failures
-            }
-          }
-        })
+      void ensureExaminer({})
         .catch(() => {
           // Allow a retry on the next render where examiner is still null.
           setExaminerEnsured(false);
@@ -172,7 +156,7 @@ export default function ExaminerPortal() {
           ensureInFlight.current = false;
         });
     }
-  }, [examiner, examinerEnsured, ensureExaminer, pendingName]);
+  }, [examiner, examinerEnsured, ensureExaminer]);
 
   // The new-user greeting has now been displayed — flag it server-side after
   // a short delay so the examiner actually sees the first-visit greeting;
@@ -331,15 +315,10 @@ export default function ExaminerPortal() {
   }, []);
 
   // examiner === null means the ensure hasn't completed yet — that only
-  // happens for a brand-new user (returning users always have a row), so
-  // show the new-user greeting with the typed name while it runs.
+  // happens for a brand-new user (returning users always have a row).
   const isNewUser =
     examiner === null || greetedAsNew || examiner?.welcomed === false;
-  const displayName =
-    examiner?.name ??
-    (examiner === null && pendingName
-      ? pendingName
-      : (user?.name ?? "examiner"));
+  const displayName = examiner?.name ?? (user?.name ?? "examiner");
 
   const greeting = isNewUser
     ? `Welcome, ${displayName}!`
@@ -354,6 +333,38 @@ export default function ExaminerPortal() {
       navigate("/");
     } catch {
       // stay on the portal; RequireAuth will re-guard on next navigation
+    }
+  };
+
+  // Profile modal — prefill from the live examiner record each time it opens.
+  const openProfile = useCallback(() => {
+    setProfileName(examiner?.name ?? "");
+    setProfileError(null);
+    setProfileSaved(false);
+    setProfileOpen(true);
+  }, [examiner?.name]);
+
+  const submitProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setProfileError(null);
+    const next = profileName.trim();
+    if (!next) {
+      setProfileError("Please enter your name.");
+      return;
+    }
+    if (next === examiner?.name) {
+      setProfileOpen(false);
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateName({ name: next });
+      setProfileSaved(true);
+      setTimeout(() => setProfileOpen(false), 800);
+    } catch (err) {
+      setProfileError(getErrorMessage(err, "Something went wrong. Please try again."));
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -376,9 +387,18 @@ export default function ExaminerPortal() {
               <h1>{greeting}</h1>
               <p className="cv-sub">{greetingSub}</p>
             </div>
-            <button className="cv-btn cv-btn-primary" onClick={() => openForm()}>
-              <Plus size={16} /> Create New Room
-            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                className="cv-btn cv-btn-secondary"
+                onClick={openProfile}
+                aria-label="Open profile settings"
+              >
+                Profile
+              </button>
+              <button className="cv-btn cv-btn-primary" onClick={() => openForm()}>
+                <Plus size={16} /> Create New Room
+              </button>
+            </div>
           </div>
 
           <div className="cv-stat-row">
@@ -613,6 +633,67 @@ export default function ExaminerPortal() {
                 "Save Changes"
               ) : (
                 "Create Room"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Profile / Account Settings — the only rename path after signup */}
+      <Modal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        title="Profile"
+        subtitle={
+          examiner?.email
+            ? `Signed in as ${examiner.email}`
+            : "Your examiner identity"
+        }
+      >
+        <form onSubmit={submitProfile}>
+          {profileError && <span className="cv-error">{profileError}</span>}
+          <div className="cv-field">
+            <label className="cv-label" htmlFor="profile-name">
+              Display name
+            </label>
+            <input
+              id="profile-name"
+              className="cv-input"
+              value={profileName}
+              onChange={(e) => {
+                setProfileName(e.target.value);
+                setProfileSaved(false);
+              }}
+              placeholder="Ada Lovelace"
+              autoComplete="name"
+              maxLength={80}
+              disabled={savingProfile}
+            />
+          </div>
+          <div className="cv-modal-actions">
+            <button
+              type="button"
+              className="cv-btn cv-btn-secondary"
+              onClick={() => setProfileOpen(false)}
+              disabled={savingProfile}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="cv-btn cv-btn-primary"
+              disabled={savingProfile || !profileName.trim()}
+            >
+              {savingProfile ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" /> Saving…
+                </>
+              ) : profileSaved ? (
+                <>
+                  <Check size={15} /> Saved
+                </>
+              ) : (
+                "Save name"
               )}
             </button>
           </div>

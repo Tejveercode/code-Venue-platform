@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { CodeVenuePage } from "@/components/venue/ui";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation } from "convex/react";
 import { getErrorMessage } from "@/lib/errors";
@@ -17,25 +17,20 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
-type Mode = "signin" | "signup";
-
 /**
- * sessionStorage key holding the typed signup name until the portal consumes
- * it — covers the race where the examiner record is created before
- * setExaminerName can run after the OTP step.
+ * sessionStorage state of an in-progress sign-in. Mobile browsers reload the
+ * page when it is backgrounded (switching to the mail app to fetch the code)
+ * — React state dies with the page. Persisting the flow means the reload
+ * lands back on the same step with the email filled in, instead of firing a
+ * SECOND OTP (the loop).
  */
-export const PENDING_NAME_KEY = "cv_pending_examiner_name";
-
-/**
- * sessionStorage state of an in-progress OTP sign-in. Mobile browsers reload
- * the page when it is backgrounded (switching to the mail app to fetch the
- * code) — React state dies with the page. Persisting the flow means the
- * reload lands back on the code step with the email filled in, instead of
- * restarting at the email form and firing a SECOND OTP (the loop).
- */
-type PendingFlow = { email: string; mode: Mode; at: number };
+type PendingFlow = { email: string; step: "code" | "name"; at: number };
 const PENDING_FLOW_KEY = "cv_pending_otp_flow";
 const PENDING_FLOW_TTL_MS = 15 * 60_000; // OTP validity window
+
+/** Retries for the post-verification next-step decision before failing open. */
+const NEXT_STEP_RETRIES = 3;
+const NEXT_STEP_RETRY_DELAY_MS = 300;
 
 function loadPendingFlow(): PendingFlow | null {
   try {
@@ -68,72 +63,89 @@ function clearPendingFlow() {
   }
 }
 
+type Step = "email" | "code" | "name";
+
 function AuthCard() {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const setExaminerName = useMutation(api.exams.setExaminerName);
+  const signInNextStep = useMutation(api.exams.signInNextStep);
   const [searchParams] = useSearchParams();
   const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"));
 
-  const [mode, setMode] = useState<Mode>("signin");
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
+  // Resume an interrupted flow (mobile reload) at the saved step. There is
+  // deliberately NO name field before verification: the name is asked once,
+  // AFTER the code is verified, and only when the account is actually new.
+  const [resumedFlow] = useState(loadPendingFlow);
+  const [step, setStep] = useState<Step>(
+    resumedFlow ? resumedFlow.step : "email",
+  );
+  const [email, setEmail] = useState(resumedFlow?.email ?? "");
   const [name, setName] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  // Dedupes the post-auth decision across StrictMode's double effect run.
+  const decidingRef = useRef(false);
 
-  // Resume an interrupted OTP flow after a page reload (mobile mail-check).
-  // Runs once on mount: if a fresh flow exists, jump straight to the code
-  // step with the email restored — no second OTP is sent. For signups the
-  // typed name is restored too (stashed before the email step).
+  /**
+   * Already-signed-in visitors: decide the next step server-side.
+   *   - Returning examiner (examiner row exists) → straight to the portal,
+   *     no name prompt, ever.
+   *   - Authenticated but no examiner row → the ONE-TIME name step (this is
+   *     account creation). Also catches a user who verified their code but
+   *     closed the tab before naming themselves.
+   *
+   * A mutation — not the reactive examiner query — so the answer always
+   * reflects the freshly-established session (reactive queries can briefly
+   * serve results computed before sign-in, which would flash the name prompt
+   * at returning examiners).
+   */
   useEffect(() => {
-    const flow = loadPendingFlow();
-    if (flow) {
-      setEmail(flow.email);
-      setMode(flow.mode);
-      setStep("code");
-      if (flow.mode === "signup") {
-        try {
-          const pending = sessionStorage.getItem(PENDING_NAME_KEY);
-          if (pending) setName(pending);
-        } catch {
-          // ignore — the portal's ensureExaminer fallback still covers the name
+    if (
+      authLoading ||
+      !isAuthenticated ||
+      step !== "email" ||
+      decidingRef.current
+    ) {
+      return;
+    }
+    decidingRef.current = true;
+    const decide = async (attempt = 0) => {
+      try {
+        const { needsName } = await signInNextStep({});
+        if (needsName) {
+          setStep("name");
+        } else {
+          clearPendingFlow();
+          navigate(redirect, { replace: true });
         }
+      } catch (err) {
+        if (attempt < NEXT_STEP_RETRIES) {
+          setTimeout(() => void decide(attempt + 1), NEXT_STEP_RETRY_DELAY_MS);
+          return;
+        }
+        // Auth is established but the decision failed — fail open to the
+        // portal, which provisions any missing examiner row on arrival.
+        // Failing to the name step instead could wrongly prompt a returning
+        // examiner for their name.
+        console.warn("[auth] sign-in next-step check failed", err);
+        clearPendingFlow();
+        navigate(redirect, { replace: true });
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    // `verifying` guards the window between the email step confirming and the
-    // OTP submit finishing — without it the effect would yank the user to the
-    // portal the instant the code step mounts (the account exists by then).
-    if (!authLoading && !verifying && isAuthenticated) {
-      navigate(redirect, { replace: true });
-    }
-  }, [authLoading, verifying, isAuthenticated, navigate, redirect]);
+    };
+    void decide();
+  }, [authLoading, isAuthenticated, step, navigate, redirect, signInNextStep]);
 
   const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-    // Stash the typed name before the account exists: ensureExaminer in the
-    // portal reads it if the account is created before setExaminerName runs,
-    // so the typed name — never the email prefix — becomes the display name.
-    if (mode === "signup" && name.trim()) {
-      try {
-        sessionStorage.setItem(PENDING_NAME_KEY, name.trim());
-      } catch {
-        // storage unavailable — setExaminerName after the OTP still covers it
-      }
-    }
     try {
       const formData = new FormData();
       formData.set("email", email);
       await signIn("email-otp", formData);
-      savePendingFlow({ email, mode, at: Date.now() });
-      setVerifying(true);
+      savePendingFlow({ email, step: "code", at: Date.now() });
       setStep("code");
     } catch (err) {
       // ConvexError (e.g. rate limits) carries a safe user-facing message;
@@ -157,38 +169,67 @@ function AuthCard() {
       const formData = new FormData();
       formData.set("email", email);
       formData.set("code", otp);
-      if (mode === "signup" && name.trim()) {
-        formData.set("name", name.trim());
-      }
       await signIn("email-otp", formData);
-
-      clearPendingFlow();
-      setVerifying(false);
-
-      // Persist the typed name onto the examiner record right after the
-      // account exists — this is the name the portal greets the examiner with.
-      if (mode === "signup" && name.trim()) {
-        try {
-          await setExaminerName({ name: name.trim() });
-          try {
-            sessionStorage.removeItem(PENDING_NAME_KEY);
-          } catch {
-            // ignore storage failures
-          }
-        } catch {
-          // The portal consumes the stashed name as a fallback and retries.
-        }
-      }
-
-      navigate(redirect, { replace: true });
     } catch (err) {
-      setVerifying(false);
       // Rate-limit errors carry actionable messages; all other failures read
       // as a wrong code (the overwhelmingly common case).
       setError(
         getErrorMessage(err, "The verification code you entered is incorrect."),
       );
       setOtp("");
+      setIsLoading(false);
+      return;
+    }
+
+    // Verified. Ask the backend what this account still needs so the
+    // experience is identical for new and returning examiners except for the
+    // one-time name prompt.
+    const nextStepWithRetry = async (): Promise<boolean> => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return (await signInNextStep({})).needsName;
+        } catch (err) {
+          if (attempt >= NEXT_STEP_RETRIES) throw err;
+          await new Promise((resolve) =>
+            setTimeout(resolve, NEXT_STEP_RETRY_DELAY_MS),
+          );
+        }
+      }
+    };
+
+    let needsName: boolean;
+    try {
+      needsName = await nextStepWithRetry();
+    } catch (err) {
+      console.warn("[auth] sign-in next-step check failed", err);
+      clearPendingFlow();
+      navigate(redirect, { replace: true });
+      setIsLoading(false);
+      return;
+    }
+
+    if (needsName) {
+      savePendingFlow({ email, step: "name", at: Date.now() });
+      setStep("name");
+    } else {
+      clearPendingFlow();
+      navigate(redirect, { replace: true });
+    }
+    setIsLoading(false);
+  };
+
+  const handleNameSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Creation-safe write: never overwrites an existing examiner's stored
+      // name (server-enforced — see setExaminerName).
+      await setExaminerName({ name: name.trim() });
+      clearPendingFlow();
+      navigate(redirect, { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setIsLoading(false);
     }
@@ -198,65 +239,24 @@ function AuthCard() {
     <div className="cv-center">
       <div className="cv-card cv-auth-card">
         <h1 className="cv-auth-title">
-          {mode === "signin" ? "Examiner sign in" : "Create examiner account"}
+          {step === "name" ? "One last thing" : "Sign in to Code Venue"}
         </h1>
         <p className="cv-auth-sub">
-          {mode === "signin"
-            ? "Welcome back. Sign in to run your exam rooms."
-            : "Set up your examiner identity in seconds."}
+          {step === "email" &&
+            "Enter your email and we'll send you a one-time sign-in code."}
+          {step === "code" && (
+            <>
+              We sent a 6-digit code to {email}. It expires in 15 minutes.
+            </>
+          )}
+          {step === "name" &&
+            "Choose the name your dashboard and students will see. You can change it anytime from Profile."}
         </p>
-
-        <div className="cv-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "signin"}
-            className={"cv-tab" + (mode === "signin" ? " active" : "")}
-            onClick={() => {
-              setMode("signin");
-              setStep("email");
-              setError(null);
-              clearPendingFlow();
-            }}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "signup"}
-            className={"cv-tab" + (mode === "signup" ? " active" : "")}
-            onClick={() => {
-              setMode("signup");
-              setStep("email");
-              setError(null);
-              clearPendingFlow();
-            }}
-          >
-            Sign Up
-          </button>
-        </div>
 
         {error && <span className="cv-error">{error}</span>}
 
-        {step === "email" ? (
+        {step === "email" && (
           <form onSubmit={handleEmailSubmit}>
-            {mode === "signup" && (
-              <div className="cv-field">
-                <label className="cv-label" htmlFor="cv-name">
-                  Your name
-                </label>
-                <input
-                  id="cv-name"
-                  className="cv-input"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ada Lovelace"
-                  autoComplete="name"
-                  disabled={isLoading}
-                />
-              </div>
-            )}
             <div className="cv-field">
               <label className="cv-label" htmlFor="cv-email">
                 Email
@@ -273,17 +273,23 @@ function AuthCard() {
                 disabled={isLoading}
               />
             </div>
-            <button type="submit" className="cv-btn cv-btn-primary cv-btn-block" disabled={isLoading}>
+            <button
+              type="submit"
+              className="cv-btn cv-btn-primary cv-btn-block"
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" /> Sending code…
                 </>
               ) : (
-                "Continue with email code"
+                "Continue with email"
               )}
             </button>
           </form>
-        ) : (
+        )}
+
+        {step === "code" && (
           <form onSubmit={handleOtpSubmit}>
             <div className="cv-field">
               <label className="cv-label" htmlFor="cv-otp">
@@ -311,10 +317,8 @@ function AuthCard() {
                 <>
                   <Loader2 size={16} className="animate-spin" /> Verifying…
                 </>
-              ) : mode === "signup" ? (
-                "Create account"
               ) : (
-                "Sign in"
+                "Verify code"
               )}
             </button>
             <p className="cv-form-footer">
@@ -323,12 +327,47 @@ function AuthCard() {
                 type="button"
                 onClick={() => {
                   clearPendingFlow();
+                  setOtp("");
                   setStep("email");
                 }}
               >
-                Try again
+                Use a different email
               </button>
             </p>
+          </form>
+        )}
+
+        {step === "name" && (
+          <form onSubmit={handleNameSubmit}>
+            <div className="cv-field">
+              <label className="cv-label" htmlFor="cv-name">
+                Your name
+              </label>
+              <input
+                id="cv-name"
+                className="cv-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ada Lovelace"
+                autoComplete="name"
+                maxLength={80}
+                required
+                disabled={isLoading}
+              />
+            </div>
+            <button
+              type="submit"
+              className="cv-btn cv-btn-primary cv-btn-block"
+              disabled={isLoading || !name.trim()}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Saving…
+                </>
+              ) : (
+                "Continue"
+              )}
+            </button>
           </form>
         )}
 

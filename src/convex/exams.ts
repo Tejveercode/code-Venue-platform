@@ -119,63 +119,57 @@ function isEmailLike(value: string): boolean {
 /**
  * Provision the signed-in user as an examiner (idempotent).
  *
- * Name resolution priority:
- *   1. `pendingName` — the name typed into the signup form (stashed by /auth
- *      and passed by the portal). Applied UNCONDITIONALLY, even over an
- *      existing row, so examiner rows created with the email fallback before
- *      this fix heal themselves on the next portal visit.
- *   2. users.name — but ONLY when it isn't email-like (Convex Auth copies
+ * Called on portal arrival. For returning examiners this is a no-op — the
+ * stored name is NEVER touched here (name changes go exclusively through
+ * updateExaminerName). Only two writes can happen:
+ *   1. Row creation, when the user has none yet (name resolution below).
+ *   2. Legacy self-heal: a row (or users.name) still holding an email-like
+ *      value from the pre-name-prompt era gets the real stored name.
+ *
+ * Name resolution for a NEW row:
+ *   1. users.name — but ONLY when it isn't email-like (Convex Auth copies
  *      the OTP email identifier into users.name; that must never be shown).
- *   3. email local-part — last resort when no name was ever provided.
+ *   2. email local-part — last resort. The real name arrives moments later
+ *      through the post-verification name prompt (setExaminerName).
+ *
+ * Duplicate examiner rows for one user are impossible: the by_user unique
+ * index read + insert happen inside one serialized Convex transaction, so a
+ * concurrent second insert retries, sees the row, and no-ops.
  *
  * Returns `{ examinerId, isNew }`; new rows always start with welcomed:
  * false so the portal can greet first-time users differently.
  */
 export const ensureExaminer = mutation({
-  args: { pendingName: v.optional(v.string()) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new ConvexError("Not authenticated");
     const user = await ctx.db.get(userId);
     const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
-    const pendingName = args.pendingName
-      ? validateExaminerName(args.pendingName)
-      : undefined;
 
     const existing = await ctx.db
       .query("examiners")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (existing) {
-      if (pendingName) {
-        // The typed name is the source of truth — always win.
-        if (existing.name !== pendingName) {
-          await ctx.db.patch(existing._id, { name: pendingName });
-        }
-        if (user && isEmailLike(user.name ?? "") && user.name !== pendingName) {
-          await ctx.db.patch(user._id, { name: pendingName });
-        }
-      } else {
-        // Self-heal examiners whose name was previously the email fallback
-        // (or an email-like value) once a real name is available.
-        const realName =
-          user?.name && !isEmailLike(user.name) ? user.name : undefined;
-        if (
-          realName &&
-          realName !== existing.name &&
-          (isEmailLike(existing.name) || existing.name === email.split("@")[0])
-        ) {
-          await ctx.db.patch(existing._id, { name: realName });
-        }
+      // Self-heal examiners whose name was previously the email fallback
+      // (or an email-like value) once a real name is available.
+      const realName =
+        user?.name && !isEmailLike(user.name) ? user.name : undefined;
+      if (
+        realName &&
+        realName !== existing.name &&
+        (isEmailLike(existing.name) || existing.name === email.split("@")[0])
+      ) {
+        await ctx.db.patch(existing._id, { name: realName });
       }
       return { examinerId: existing._id, isNew: false };
     }
 
     const name =
-      pendingName ??
-      (user?.name && !isEmailLike(user.name)
+      user?.name && !isEmailLike(user.name)
         ? user.name
-        : email.split("@")[0]);
+        : email.split("@")[0];
     const examinerId = await ctx.db.insert("examiners", {
       userId,
       name,
@@ -188,9 +182,14 @@ export const ensureExaminer = mutation({
 });
 
 /**
- * Store the examiner's typed display name (called right after signup).
- * Creates the examiner record if it doesn't exist yet, so the name survives
- * even when this mutation races with ensureExaminer.
+ * The ONE-TIME post-verification name prompt (account creation). Called from
+ * /auth after a brand-new email verifies.
+ *
+ * CREATION-SAFE: if an examiner record already exists for this user (i.e.
+ * this was actually a returning examiner, or the row was provisioned in a
+ * parallel tab), the stored name is NEVER overwritten — an email-like legacy
+ * fallback is the only thing it may replace. A returning examiner can
+ * therefore never lose their name by riding through the prompt.
  */
 export const setExaminerName = mutation({
   args: { name: v.string() },
@@ -200,27 +199,91 @@ export const setExaminerName = mutation({
     if (userId === null) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db.get(userId);
-    if (user) {
-      await ctx.db.patch(user._id, { name });
-    }
-
     const email = user?.email ?? `guest-${userId.slice(0, 8)}@codevenue.local`;
+
     const examiner = await ctx.db
       .query("examiners")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
     if (examiner) {
+      // Row already exists: replace only an email-like legacy fallback.
+      if (isEmailLike(examiner.name) && examiner.name !== name) {
+        await ctx.db.patch(examiner._id, { name });
+      }
+      if (
+        user &&
+        isEmailLike(user.name ?? "") &&
+        user.name !== name
+      ) {
+        await ctx.db.patch(user._id, { name });
+      }
+      return { ok: true, created: false };
+    }
+
+    // Genuinely new examiner row — this is the account-creation write.
+    if (user) {
+      await ctx.db.patch(user._id, { name });
+    }
+    await ctx.db.insert("examiners", {
+      userId,
+      name,
+      email,
+      createdAt: Date.now(),
+      welcomed: false,
+    });
+    return { ok: true, created: true };
+  },
+});
+
+/**
+ * Deliberate rename — the ONLY way an existing examiner's name changes after
+ * signup. Called from the portal's Profile (Account Settings) modal.
+ */
+export const updateExaminerName = mutation({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
+    const name = validateExaminerName(args.name);
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new ConvexError("Not authenticated");
+
+    const examiner = await ctx.db
+      .query("examiners")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!examiner) throw new ConvexError("Examiner profile not found");
+
+    if (examiner.name !== name) {
       await ctx.db.patch(examiner._id, { name });
-    } else {
-      await ctx.db.insert("examiners", {
-        userId,
-        name,
-        email,
-        createdAt: Date.now(),
-        welcomed: false,
-      });
+    }
+    const user = await ctx.db.get(userId);
+    if (user && user.name !== name) {
+      await ctx.db.patch(user._id, { name });
     }
     return { ok: true };
+  },
+});
+
+/**
+ * Auth-flow decision point, called by /auth after verification (and by an
+ * already-authenticated visitor landing on /auth): does this account still
+ * need its one-time name prompt?
+ *
+ * The only signal is the EXISTENCE of an examiner record — never its name —
+ * so a returning examiner skips the prompt and a new account sees it exactly
+ * once. Deliberately a mutation: reactive queries can briefly serve results
+ * computed before the fresh session established, which would flash the name
+ * prompt at returning examiners.
+ */
+export const signInNextStep = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new ConvexError("Not authenticated");
+    const examiner = await ctx.db
+      .query("examiners")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    return { needsName: examiner === null };
   },
 });
 
