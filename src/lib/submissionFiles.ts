@@ -2,13 +2,16 @@
  * Submission download helpers (examiner side).
  *
  * Naming convention shared by the single-file and zip flows:
- *   "{student name}_{ID}.txt"  e.g. "Akash_24BCA10210.txt"
+ *   "{student name}_{last 6 chars of ID}.txt"  e.g. "Akash_A10210.txt"
  * The ID is the student's own institutional ID (regNo) when they entered one,
- * otherwise the server-minted unique UID ("S-7F3K2Q"). Either way it is
- * unique per student, so same-named students never collide inside a zip —
- * and the examiner can match a file to a student via the ID pill shown on
- * the student's exam screen. ".txt" is used because submission code is
- * stored as plain text and no language detection is attempted.
+ * otherwise the server-minted unique UID ("S-7F3K2Q"). The last-6 fragment
+ * keeps same-named students apart (two "Akash Singh"s with different roll
+ * numbers get different files); for server-minted UIDs it is exactly the
+ * unique random part (the "S-" prefix is constant). A residual collision —
+ * identical names AND identical last-6 — is impossible inside a zip because
+ * the archive builder appends -2, -3, … to duplicates. ".txt" is used
+ * because submission code is stored as plain text and no language detection
+ * is attempted.
  */
 
 /**
@@ -28,9 +31,9 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
- * "{name}_{ID}.txt" — the canonical per-student filename. `regNo` (the
- * student's own institutional ID) wins when present; `studentUid` is the
- * always-present fallback. Both are unique.
+ * "{name}_{last-6-of-ID}.txt" — the canonical per-student filename. `regNo`
+ * (the student's own institutional ID) wins when present; `studentUid` is
+ * the always-present fallback. IDs shorter than 6 chars are used whole.
  */
 export function submissionFileName(
   studentName: string,
@@ -38,7 +41,8 @@ export function submissionFileName(
   regNo?: string | null,
 ): string {
   const base = sanitizeFilename(studentName) || "student";
-  const id = sanitizeFilename(regNo || studentUid) || studentUid;
+  const fullId = sanitizeFilename(regNo || studentUid) || studentUid;
+  const id = fullId.slice(-6) || fullId;
   return `${base}_${id}.txt`;
 }
 

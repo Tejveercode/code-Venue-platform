@@ -219,7 +219,7 @@ export default function Submissions() {
   const downloadOne = useCallback(
     (studentId: string) => {
       const r = rows.find((x) => x.studentId === studentId);
-      if (!r?.submission?.isFinal) return;
+      if (!r?.submission) return;
       downloadBlob(
         new Blob([r.submission.code], { type: "text/plain;charset=utf-8" }),
         submissionFileName(r.name, r.studentUid, r.regNo),
@@ -291,7 +291,7 @@ export default function Submissions() {
                       row.submission!.updatedAt,
                     )}
                     selected={row.studentId === selectedId}
-                    downloadable={row.submission?.isFinal === true}
+                    downloadable={row.submission !== null}
                     onSelect={handleSelect}
                     onDownload={downloadOne}
                   />

@@ -733,8 +733,8 @@ export default function ExaminerPortal() {
         {deleteRoom && (
           <p className="cv-modal-sub" style={{ marginBottom: 0 }}>
             Delete '{deleteRoom.name}'? This permanently removes the room, its
-            question, and all {counts?.[deleteRoom._id]?.submitted ?? 0} student
-            submissions. This cannot be undone.
+            question, and all {counts?.[deleteRoom._id]?.joined ?? 0} student
+            records — drafts and final submissions alike. This cannot be undone.
           </p>
         )}
       </Modal>
