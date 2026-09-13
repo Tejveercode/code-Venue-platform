@@ -180,12 +180,12 @@
 }
 
 /* ---------- Narrow screens ----------
-   The row head is one flex line (name + ID + flags + count). Under 480px it
-   wraps: name+ID stay on the first line (name truncates with ellipsis so an
-   unbounded student name can never push the meta out of the viewport), the
-   flag pill and count drop to a second line. */
+   The row head is one flex line (name + ID + flags + count). At the app's
+   shared 860px breakpoint it wraps: name+ID stay on the first line (name
+   truncates with ellipsis so an unbounded student name can never push the
+   meta out of the viewport), the flag pill and count drop to a second line. */
 
-@media (max-width: 480px) {
+@media (max-width: 860px) {
   [data-code-venue-page] .cv-mon-row-head {
     flex-wrap: wrap;
     row-gap: 4px;
