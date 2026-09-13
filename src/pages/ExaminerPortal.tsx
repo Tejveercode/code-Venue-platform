@@ -29,7 +29,10 @@ import { getErrorMessage } from "@/lib/errors";
 import { VIOLATION_EVENT_LABELS } from "./violationEvents";
 
 type Room = Doc<"rooms">;
-type Counts = Record<string, { joined: number; submitted: number }>;
+type Counts = Record<
+  string,
+  { joined: number; submitted: number; flagged: number; autoSubmitted: number }
+>;
 
 type MonitoringRow = {
   studentId: Id<"students">;
@@ -41,6 +44,7 @@ type MonitoringRow = {
   autoSubmittedAt: number | null;
   breakdown: { blur: number; paste: number; copy: number; rejoin: number };
   rejoins: number[];
+  recentEvents: { type: "blur" | "paste" | "copy"; at: number }[];
 };
 
 type MonitoringData =
@@ -93,6 +97,153 @@ const StatCard = memo(function StatCard({
 // Shows per-student violation state and expands to the per-type breakdown.
 // ---------------------------------------------------------------------------
 
+/** Neutral count fallback while a room's live counts load. */
+const EMPTY_COUNT = { joined: 0, submitted: 0, flagged: 0, autoSubmitted: 0 };
+
+/**
+ * One room in the dashboard list — the extracted room detail body (was inline
+ * in the portal render). Presentational only; every action arrives as a
+ * callback, and live monitoring subscribes only while the row is open.
+ * `onEdit`/`onEnd` are null for closed rooms, whose controls hide (a closed
+ * exam can no longer be edited or ended — Delete stays available).
+ */
+const RoomRow = memo(function RoomRow({
+  room,
+  c,
+  open,
+  onToggle,
+  copiedId,
+  onCopy,
+  onEdit,
+  onEnd,
+  onDelete,
+}: {
+  room: Room;
+  c: typeof EMPTY_COUNT;
+  open: boolean;
+  onToggle: (id: string) => void;
+  copiedId: string | null;
+  onCopy: (room: Room) => void;
+  onEdit: ((room: Room) => void) | null;
+  onEnd: ((room: Room) => void) | null;
+  onDelete: (room: Room) => void;
+}) {
+  const navigate = useNavigate();
+  const pct =
+    room.enrolledLimit > 0 ? Math.round((c.submitted / room.enrolledLimit) * 100) : 0;
+  return (
+    <AccordionRow
+      open={open}
+      onToggle={() => onToggle(room._id)}
+      header={
+        <span className="cv-acc-title">
+          <h3>{room.name}</h3>
+          <CodePill code={room.code} />
+          {room.status === "LIVE" ? <LivePill /> : <ClosedPill />}
+          {/* Compact glance metrics on the collapsed header — the numbers a
+              teacher checks from across the room. Flagged appears only when
+              non-zero so it doubles as an attention cue. */}
+          <span className="cv-acc-metrics">
+            <span>
+              {c.joined}/{room.enrolledLimit}
+            </span>
+            <span>{c.submitted} in</span>
+            {c.flagged > 0 && <span className="danger">⚠ {c.flagged} flagged</span>}
+          </span>
+        </span>
+      }
+    >
+      <div id={`room-${room._id}`} className="cv-detail-grid">
+        <div className="cv-detail-cell">
+          <span className="k">Started</span>
+          <span className="v">
+            {format(room.startedAt, "MMM d, HH:mm")} ·{" "}
+            {room.durationMinutes} min
+          </span>
+        </div>
+        <div className="cv-detail-cell">
+          <span className="k">Enrolled</span>
+          <span className="v">
+            {c.joined} joined / {room.enrolledLimit} limit
+          </span>
+        </div>
+        <div className="cv-detail-cell">
+          <span className="k">Tab-switch warnings</span>
+          <span className="v">
+            {room.violationLimit
+              ? `${room.violationLimit} (auto-submit after)`
+              : "Zero-tolerance"}
+          </span>
+        </div>
+      </div>
+
+      <MonitoringPanel roomId={room._id} active={open} />
+
+      <div className="cv-progress">
+        <div className="cv-progress-label">
+          <span>
+            {c.submitted} of {room.enrolledLimit} submitted
+          </span>
+          <span>{pct}%</span>
+        </div>
+        <div className="cv-progress-bar">
+          <div
+            className="cv-progress-fill"
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      </div>
+
+      <QuestionBox prompt={room.prompt} />
+
+      <div className="cv-action-row">
+        <button
+          className="cv-btn cv-btn-secondary cv-btn-sm"
+          onClick={() => onCopy(room)}
+        >
+          {copiedId === room._id ? (
+            <>
+              <Check size={14} /> Copied!
+            </>
+          ) : (
+            <>
+              <Copy size={14} /> Copy Room Code
+            </>
+          )}
+        </button>
+        <button
+          className="cv-btn cv-btn-primary cv-btn-sm"
+          onClick={() => navigate(`/submissions/${room._id}`)}
+        >
+          View Submissions <ChevronRight size={14} />
+        </button>
+        {onEdit && (
+          <button
+            className="cv-btn cv-btn-secondary cv-btn-sm"
+            onClick={() => onEdit(room)}
+          >
+            <Pencil size={14} /> Edit
+          </button>
+        )}
+        {onEnd && (
+          <button
+            className="cv-btn cv-btn-danger cv-btn-sm"
+            onClick={() => onEnd(room)}
+          >
+            <Square size={13} /> End Exam
+          </button>
+        )}
+        <button
+          className="cv-btn cv-btn-danger cv-btn-sm"
+          onClick={() => onDelete(room)}
+        >
+          <Trash2 size={14} /> Delete Room
+        </button>
+      </div>
+    </AccordionRow>
+  );
+});
+
 const MonitoringRowItem = memo(function MonitoringRowItem({
   row,
 }: {
@@ -122,16 +273,38 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
           {row.flagged && row.autoSubmittedAt === null && (
             <span className="cv-pill cv-pill-flag">Flagged</span>
           )}
+          {/* Words, not just a number — "⚠ 2 violations" reads instantly;
+              a bare "2" does not. */}
           <span
             className={"cv-mon-count" + (flagged ? " danger" : "")}
             title="Violations counted toward the limit"
           >
-            {row.violationCount}
+            {row.violationCount > 0
+              ? `⚠ ${row.violationCount} ${row.violationCount === 1 ? "violation" : "violations"}`
+              : "No violations"}
           </span>
         </span>
       </button>
       {expanded && (
         <div className="cv-mon-breakdown">
+          {/* Plain-language event list first — what happened and when.
+              Numeric totals stay secondary below. */}
+          {row.recentEvents.length > 0 ? (
+            <ul className="cv-mon-events">
+              {row.recentEvents.slice(0, 6).map((e, i) => (
+                <li key={`${e.at}-${i}`}>
+                  {VIOLATION_EVENT_LABELS[e.type]} — {format(e.at, "HH:mm:ss")}
+                </li>
+              ))}
+              {row.recentEvents.length > 6 && (
+                <li className="more">
+                  + {row.recentEvents.length - 6} earlier
+                </li>
+              )}
+            </ul>
+          ) : (
+            <p className="cv-mon-events-empty">No tab switches, pastes, or copies recorded.</p>
+          )}
           <div className="cv-mon-grid">
             {(Object.keys(VIOLATION_EVENT_LABELS) as (keyof typeof VIOLATION_EVENT_LABELS)[]).map(
               (type) => (
@@ -188,11 +361,11 @@ function MonitoringPanel({
   return (
     <div className="cv-monitor">
       <div className="cv-monitor-head">
-        <h4>Live Monitoring</h4>
+        <h4>Students</h4>
         <span className="cv-monitor-limit">
           {data.room.violationLimit > 0
-            ? `Limit: ${data.room.violationLimit}`
-            : "Zero-tolerance"}
+            ? `${data.room.violationLimit} warnings, then auto-submit`
+            : "Any violation flags the student"}
         </span>
       </div>
       {data.rows.length === 0 ? (
@@ -320,15 +493,6 @@ export default function ExaminerPortal() {
     }
   }, [examiner, markWelcomed]);
 
-  const filteredRooms = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rooms;
-    return rooms.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q),
-    );
-  }, [rooms, search]);
-
-  const activeRooms = rooms.filter((r) => r.status === "LIVE").length;
   const totalStudents = rooms.reduce(
     (sum, r) => sum + (counts?.[r._id]?.joined ?? 0),
     0,
@@ -491,6 +655,68 @@ export default function ExaminerPortal() {
     examiner === null || greetedAsNew || examiner?.welcomed === false;
   const displayName = examiner?.name ?? (user?.name ?? "examiner");
 
+  // --- Dashboard triage (the "what needs me NOW" layer) ---------------------
+  // Only LIVE rooms can demand attention; closed rooms never surface here.
+  // Every item is directly actionable — no fake urgency, and the strip
+  // disappears entirely when there is nothing to act on.
+  const attentionItems = useMemo(() => {
+    const items: { key: string; tone: "warn" | "info"; text: string }[] = [];
+    for (const room of rooms) {
+      if (room.status !== "LIVE") continue;
+      const c = counts?.[room._id];
+      if (!c) continue;
+      if (c.flagged > 0 || c.autoSubmitted > 0) {
+        const parts: string[] = [];
+        if (c.flagged > 0)
+          parts.push(
+            `${c.flagged} flagged ${c.flagged === 1 ? "student" : "students"}`,
+          );
+        if (c.autoSubmitted > 0)
+          parts.push(
+            `${c.autoSubmitted} auto-${c.autoSubmitted === 1 ? "submitted" : "submitted"}`,
+          );
+        items.push({
+          key: `flag-${room._id}`,
+          tone: "warn",
+          text: `${room.name} — ${parts.join(" · ")}. Review in the room's monitoring panel.`,
+        });
+      }
+      if (c.joined > 0 && c.joined > c.submitted) {
+        const outstanding = c.joined - c.submitted;
+        items.push({
+          key: `sub-${room._id}`,
+          tone: "info",
+          text: `${room.name} — ${outstanding} ${outstanding === 1 ? "student" : "students"} still writing.`,
+        });
+      }
+    }
+    return items;
+  }, [rooms, counts]);
+
+  // Active vs past split — live exams are the primary content during class;
+  // closed exams move to a visually secondary "Past exams" section so a
+  // semester of history never buries the room being monitored.
+  const activeRoomsList = useMemo(
+    () => rooms.filter((r) => r.status === "LIVE"),
+    [rooms],
+  );
+  const activeRooms = activeRoomsList.length;
+  const pastRoomsList = useMemo(
+    () => rooms.filter((r) => r.status !== "LIVE"),
+    [rooms],
+  );
+  const searchFilter = useCallback(
+    (list: readonly Room[]) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return [...list];
+      return list.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q),
+      );
+    },
+    [search],
+  );
+
   const greeting = isNewUser
     ? `Welcome, ${displayName}!`
     : `Welcome back, ${displayName}`;
@@ -610,122 +836,91 @@ export default function ExaminerPortal() {
                 with your class — students enter it on the Student page. Their
                 work appears under <strong>View Submissions</strong>.
               </div>
-            ) : filteredRooms.length === 0 ? (
+            ) : search.trim() && searchFilter(rooms).length === 0 ? (
               <div className="cv-empty">No rooms match "{search}".</div>
             ) : (
-              <div className="cv-accordion">
-                {filteredRooms.map((room) => {
-                  const c = counts?.[room._id] ?? { joined: 0, submitted: 0 };
-                  const pct =
-                    room.enrolledLimit > 0
-                      ? Math.round((c.submitted / room.enrolledLimit) * 100)
-                      : 0;
-                  return (
-                    <AccordionRow
-                      key={room._id}
-                      open={openIds.has(room._id)}
-                      onToggle={() => toggleRow(room._id)}
-                      header={
-                        <span className="cv-acc-title">
-                          <h3>{room.name}</h3>
-                          <CodePill code={room.code} />
-                          {room.status === "LIVE" ? <LivePill /> : <ClosedPill />}
-                        </span>
-                      }
-                    >
-                      <div className="cv-detail-grid">
-                        <div className="cv-detail-cell">
-                          <span className="k">Started</span>
-                          <span className="v">
-                            {format(room.startedAt, "MMM d, HH:mm")} ·{" "}
-                            {room.durationMinutes} min
-                          </span>
-                        </div>
-                        <div className="cv-detail-cell">
-                          <span className="k">Enrolled</span>
-                          <span className="v">
-                            {c.joined} joined / {room.enrolledLimit} limit
-                          </span>
-                        </div>
-                        <div className="cv-detail-cell">
-                          <span className="k">Violation limit</span>
-                          <span className="v">
-                            {room.violationLimit
-                              ? `${room.violationLimit} (auto-submit after)`
-                              : "Zero-tolerance"}
-                          </span>
-                        </div>
-                      </div>
+              <>
+                {/* ACTIVE first — the rooms that can need action right now. */}
+                {activeRoomsList.length > 0 && (
+                  <>
+                    <h3 className="cv-list-heading">Active exams</h3>
+                    <div className="cv-accordion">
+                      {searchFilter(activeRoomsList).map((room) => (
+                        <RoomRow
+                          key={room._id}
+                          room={room}
+                          c={counts?.[room._id] ?? EMPTY_COUNT}
+                          open={openIds.has(room._id)}
+                          onToggle={toggleRow}
+                          copiedId={copiedId}
+                          onCopy={copyCode}
+                          onEdit={openForm}
+                          onEnd={setEndRoom}
+                          onDelete={openDelete}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
 
-                      <MonitoringPanel roomId={room._id} active={openIds.has(room._id)} />
-
-                      <div className="cv-progress">
-                        <div className="cv-progress-label">
-                          <span>
-                            {c.submitted} of {room.enrolledLimit} submitted
-                          </span>
-                          <span>{pct}%</span>
-                        </div>
-                        <div className="cv-progress-bar">
-                          <div
-                            className="cv-progress-fill"
-                            style={{ width: `${Math.min(100, pct)}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <QuestionBox prompt={room.prompt} />
-
-                      <div className="cv-action-row">
-                        <button
-                          className="cv-btn cv-btn-secondary cv-btn-sm"
-                          onClick={() => copyCode(room)}
-                        >
-                          {copiedId === room._id ? (
-                            <>
-                              <Check size={14} /> Copied!
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={14} /> Copy Room Code
-                            </>
-                          )}
-                        </button>
-                        <button
-                          className="cv-btn cv-btn-secondary cv-btn-sm"
-                          onClick={() => navigate(`/submissions/${room._id}`)}
-                        >
-                          View Submissions <ChevronRight size={14} />
-                        </button>
-                        {room.status === "LIVE" && (
-                          <>
-                            <button
-                              className="cv-btn cv-btn-secondary cv-btn-sm"
-                              onClick={() => openForm(room)}
-                            >
-                              <Pencil size={14} /> Edit
-                            </button>
-                            <button
-                              className="cv-btn cv-btn-danger cv-btn-sm"
-                              onClick={() => setEndRoom(room)}
-                            >
-                              <Square size={13} /> End Exam
-                            </button>
-                          </>
-                        )}
-                        <button
-                          className="cv-btn cv-btn-danger cv-btn-sm"
-                          onClick={() => openDelete(room)}
-                        >
-                          <Trash2 size={14} /> Delete Room
-                        </button>
-                      </div>
-                    </AccordionRow>
-                  );
-                })}
-              </div>
+                {/* Past exams — secondary; hidden entirely when empty. */}
+                {pastRoomsList.length > 0 && (
+                  <>
+                    <h3 className="cv-list-heading">Past exams</h3>
+                    <div className="cv-accordion cv-accordion-muted">
+                      {searchFilter(pastRoomsList).map((room) => (
+                        <RoomRow
+                          key={room._id}
+                          room={room}
+                          c={counts?.[room._id] ?? EMPTY_COUNT}
+                          open={openIds.has(room._id)}
+                          onToggle={toggleRow}
+                          copiedId={copiedId}
+                          onCopy={copyCode}
+                          onEdit={null}
+                          onEnd={null}
+                          onDelete={openDelete}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </section>
+
+          {/* Attention strip — rendered only when something is actionable.
+              Deliberately AFTER the room list in source order but visually
+              pinned above it; see CSS (.cv-attention uses order). */}
+          {attentionItems.length > 0 && (
+            <div className="cv-attention" role="status">
+              {attentionItems.map((item) => (
+                <div
+                  key={item.key}
+                  className={
+                    "cv-attention-item" + (item.tone === "warn" ? " warn" : "")
+                  }
+                >
+                  <span className="cv-attention-text">{item.text}</span>
+                  {item.key.startsWith("flag-") && (
+                    <button
+                      type="button"
+                      className="cv-btn cv-btn-secondary cv-btn-sm"
+                      onClick={() => {
+                        const id = item.key.slice("flag-".length);
+                        setOpenIds((prev) => new Set(prev).add(id));
+                        document
+                          .getElementById(`room-${id}`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
+                    >
+                      Review
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
 

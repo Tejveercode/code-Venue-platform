@@ -13,6 +13,91 @@
   font-weight: 600;
 }
 
+/* ---------- Dashboard triage ----------
+   Attention strip: rendered ONLY when something is actionable (flagged or
+   auto-submitted students, outstanding submissions). Warn items use the
+   danger tint + text; info items stay neutral — no fake urgency. */
+
+[data-code-venue-page] .cv-attention {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-code-venue-page] .cv-attention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-left: 3px solid var(--accent-caramel);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+}
+
+[data-code-venue-page] .cv-attention-item.warn {
+  border-left-color: #a13d2d;
+  background: rgba(161, 61, 45, 0.06);
+}
+
+[data-code-venue-page] .cv-attention-item.warn .cv-attention-text {
+  color: #8c2f22;
+  font-weight: 600;
+}
+
+[data-code-venue-page] .cv-attention-text {
+  color: var(--text-main);
+  min-width: 0;
+}
+
+/* Section headings inside the room list (Active exams / Past exams). */
+[data-code-venue-page] .cv-list-heading {
+  margin: 6px 0 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+}
+
+/* Collapsed room header: compact glance metrics after the pills. */
+[data-code-venue-page] .cv-acc-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+[data-code-venue-page] .cv-acc-metrics .danger {
+  color: #a13d2d;
+}
+
+/* Past-exam list: visually secondary to Active. */
+[data-code-venue-page] .cv-accordion-muted .cv-acc-item {
+  opacity: 0.78;
+}
+
+/* Header glance metrics: keep on one line on wide screens; under the app's
+   860px breakpoint let them wrap under the title instead of squeezing the
+   room name (mirrors .cv-mon-row-head handling). */
+@media (max-width: 860px) {
+  [data-code-venue-page] .cv-acc-title {
+    flex-wrap: wrap;
+  }
+  [data-code-venue-page] .cv-acc-metrics {
+    flex-basis: 100%;
+    margin-left: 26px; /* aligns under the title, clear of the chevron */
+  }
+}
+
 /* Form-field helper text (violation-limit explanation in the room form). */
 [data-code-venue-page] .cv-field-hint {
   margin: 6px 0 0;
@@ -214,5 +299,49 @@
     flex-basis: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+}
+
+/* ---------- Plain-language violation events ---------- */
+
+[data-code-venue-page] .cv-mon-events {
+  margin: 0 0 10px;
+  padding: 0 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-mon-events li.more {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .cv-mon-events-empty {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+/* ---------- Accessibility ----------
+   Visible keyboard focus on every interactive element in the monitoring
+   surface (buttons otherwise rely on color alone). */
+
+[data-code-venue-page] .cv-mon-row-head:focus-visible,
+[data-code-venue-page] .cv-mon-row-head:focus-within {
+  outline: 2px solid var(--accent-caramel);
+  outline-offset: 2px;
+}
+
+[data-code-venue-page] .cv-monitor-toggle:focus-visible {
+  outline: 2px solid var(--accent-caramel);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .cv-mon-row,
+  [data-code-venue-page] .cv-mon-row-head {
+    transition: none;
   }
 }

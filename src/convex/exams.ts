@@ -418,7 +418,8 @@ export const listMyRooms = query({
 });
 
 /**
- * Joined + final-submitted counts for a list of rooms (live via subscription).
+ * Joined + final-submitted + flagged counts for a list of rooms (live via
+ * subscription).
  *
  * Ownership first: unknown or foreign roomIds are simply omitted — this is a
  * public-shaped query, so the examiner check is the only access control.
@@ -426,7 +427,8 @@ export const listMyRooms = query({
  * Batching: per room we run exactly two indexed reads (students by_room,
  * submissions by_room) instead of the previous pattern that issued one
  * by_student query PER STUDENT per room. Worst case for a full dashboard:
- * 2 × MAX_COUNT_ROOMS indexed queries.
+ * 2 × MAX_COUNT_ROOMS indexed queries. Flagged/auto-submitted come free from
+ * the same students read — monitoring tallies live on the student rows.
  */
 export const getRoomCounts = query({
   args: { roomIds: v.array(v.id("rooms")) },
@@ -435,7 +437,10 @@ export const getRoomCounts = query({
     if (!examiner) return {};
 
     const roomIds = args.roomIds.slice(0, MAX_ROOM_IDS_PER_QUERY);
-    const counts: Record<string, { joined: number; submitted: number }> = {};
+    const counts: Record<
+      string,
+      { joined: number; submitted: number; flagged: number; autoSubmitted: number }
+    > = {};
 
     for (const roomId of roomIds) {
       const room = await requireOwnedRoom(ctx, roomId, examiner._id);
@@ -453,7 +458,13 @@ export const getRoomCounts = query({
       for (const s of submissions) {
         if (s.isFinal) submitted++;
       }
-      counts[roomId] = { joined: students.length, submitted };
+      let flagged = 0;
+      let autoSubmitted = 0;
+      for (const s of students) {
+        if (s.flagged === true) flagged++;
+        if (s.autoSubmittedAt !== undefined) autoSubmitted++;
+      }
+      counts[roomId] = { joined: students.length, submitted, flagged, autoSubmitted };
     }
     return counts;
   },
@@ -804,6 +815,14 @@ export const getRoomMonitoring = query({
         .filter((e) => e.type === "rejoin")
         .slice(-MAX_REJOIN_TIMESTAMPS_RETURNED)
         .map((e) => e.at);
+      // Most recent enforced (non-rejoin) events, newest first, capped — feeds
+      // the plain-language violation detail ("Tab switched — 14:32") so the
+      // examiner reads what happened, not just totals.
+      const recentEvents = list
+        .filter((e) => e.type !== "rejoin")
+        .slice(-MAX_REJOIN_TIMESTAMPS_RETURNED)
+        .reverse()
+        .map((e) => ({ type: e.type, at: e.at }));
       return {
         studentId: student._id,
         name: student.name,
@@ -819,6 +838,7 @@ export const getRoomMonitoring = query({
           rejoin: count("rejoin"),
         },
         rejoins,
+        recentEvents,
       };
     });
 
