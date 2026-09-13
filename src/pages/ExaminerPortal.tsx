@@ -274,7 +274,8 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
             <span className="cv-pill cv-pill-flag">Flagged</span>
           )}
           {/* Words, not just a number — "⚠ 2 violations" reads instantly;
-              a bare "2" does not. */}
+              a bare "2" does not. The ⚠ glyph keeps flagged students
+              distinguishable without relying on color alone (a11y). */}
           <span
             className={"cv-mon-count" + (flagged ? " danger" : "")}
             title="Violations counted toward the limit"
@@ -287,7 +288,18 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
       </button>
       {expanded && (
         <div className="cv-mon-breakdown">
-          {/* Plain-language event list first — what happened and when.
+          {/* Auto-submit explanation first, in plain language — the examiner
+              should read WHAT happened and WHY without cross-referencing
+              counts. */}
+          {row.autoSubmittedAt !== null && (
+            <p className="cv-mon-autosubmit">
+              Auto-submitted at {format(row.autoSubmittedAt, "HH:mm:ss")}
+              {row.violationCount > 0 &&
+                ` — ${row.violationCount} ${row.violationCount === 1 ? "violation" : "violations"} detected`}
+              .
+            </p>
+          )}
+          {/* Plain-language event list next — what happened and when.
               Numeric totals stay secondary below. */}
           {row.recentEvents.length > 0 ? (
             <ul className="cv-mon-events">
@@ -705,17 +717,32 @@ export default function ExaminerPortal() {
     () => rooms.filter((r) => r.status !== "LIVE"),
     [rooms],
   );
-  const searchFilter = useCallback(
-    (list: readonly Room[]) => {
-      const q = search.trim().toLowerCase();
-      if (!q) return [...list];
-      return list.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q),
-      );
-    },
-    [search],
+  // Search predicate + memoized filtered lists — stable identities so the
+  // room rows don't re-render on unrelated state changes.
+  const query = search.trim().toLowerCase();
+  const activeRoomsFiltered = useMemo(
+    () =>
+      !query
+        ? activeRoomsList
+        : activeRoomsList.filter(
+            (r) =>
+              r.name.toLowerCase().includes(query) ||
+              r.code.toLowerCase().includes(query),
+          ),
+    [activeRoomsList, query],
   );
+  const pastRoomsFiltered = useMemo(
+    () =>
+      !query
+        ? pastRoomsList
+        : pastRoomsList.filter(
+            (r) =>
+              r.name.toLowerCase().includes(query) ||
+              r.code.toLowerCase().includes(query),
+          ),
+    [pastRoomsList, query],
+  );
+  const noSearchResults = Boolean(query) && rooms.length > 0 && activeRoomsFiltered.length === 0 && pastRoomsFiltered.length === 0;
 
   const greeting = isNewUser
     ? `Welcome, ${displayName}!`
@@ -816,82 +843,10 @@ export default function ExaminerPortal() {
             />
           </div>
 
-          <section className="cv-card cv-panel">
-            <div className="cv-panel-head">
-              <h2>Exam Rooms</h2>
-              <input
-                className="cv-input cv-search"
-                placeholder="Search by name or code…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-
-            {rooms === undefined ? (
-              <div className="cv-empty">Loading rooms…</div>
-            ) : rooms.length === 0 ? (
-              <div className="cv-empty">
-                No exam rooms yet. Click <strong>Create New Room</strong> above,
-                write your question, then share the generated code (CV-####)
-                with your class — students enter it on the Student page. Their
-                work appears under <strong>View Submissions</strong>.
-              </div>
-            ) : search.trim() && searchFilter(rooms).length === 0 ? (
-              <div className="cv-empty">No rooms match "{search}".</div>
-            ) : (
-              <>
-                {/* ACTIVE first — the rooms that can need action right now. */}
-                {activeRoomsList.length > 0 && (
-                  <>
-                    <h3 className="cv-list-heading">Active exams</h3>
-                    <div className="cv-accordion">
-                      {searchFilter(activeRoomsList).map((room) => (
-                        <RoomRow
-                          key={room._id}
-                          room={room}
-                          c={counts?.[room._id] ?? EMPTY_COUNT}
-                          open={openIds.has(room._id)}
-                          onToggle={toggleRow}
-                          copiedId={copiedId}
-                          onCopy={copyCode}
-                          onEdit={openForm}
-                          onEnd={setEndRoom}
-                          onDelete={openDelete}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Past exams — secondary; hidden entirely when empty. */}
-                {pastRoomsList.length > 0 && (
-                  <>
-                    <h3 className="cv-list-heading">Past exams</h3>
-                    <div className="cv-accordion cv-accordion-muted">
-                      {searchFilter(pastRoomsList).map((room) => (
-                        <RoomRow
-                          key={room._id}
-                          room={room}
-                          c={counts?.[room._id] ?? EMPTY_COUNT}
-                          open={openIds.has(room._id)}
-                          onToggle={toggleRow}
-                          copiedId={copiedId}
-                          onCopy={copyCode}
-                          onEdit={null}
-                          onEnd={null}
-                          onDelete={openDelete}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </section>
 
           {/* Attention strip — rendered only when something is actionable.
-              Deliberately AFTER the room list in source order but visually
-              pinned above it; see CSS (.cv-attention uses order). */}
+              Sits between the stats and the room list so "what needs me"
+              is the first thing a teacher scans, before any room detail. */}
           {attentionItems.length > 0 && (
             <div className="cv-attention" role="status">
               {attentionItems.map((item) => (
@@ -921,6 +876,80 @@ export default function ExaminerPortal() {
               ))}
             </div>
           )}
+          <section className="cv-card cv-panel">
+            <div className="cv-panel-head">
+              <h2>Exam Rooms</h2>
+              <input
+                className="cv-input cv-search"
+                placeholder="Search by name or code…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {rooms === undefined ? (
+              <div className="cv-empty">Loading rooms…</div>
+            ) : rooms.length === 0 ? (
+              <div className="cv-empty">
+                No exam rooms yet. Click <strong>Create New Room</strong> above,
+                write your question, then share the generated code (CV-####)
+                with your class — students enter it on the Student page. Their
+                work appears under <strong>View Submissions</strong>.
+              </div>
+            ) : noSearchResults ? (
+              <div className="cv-empty">
+                No exams found for "{search}". Try a different name or code.
+              </div>
+            ) : (
+              <>
+                {/* ACTIVE first — the rooms that can need action right now. */}
+                {activeRoomsList.length > 0 && (
+                  <>
+                    <h3 className="cv-list-heading">Active exams</h3>
+                    <div className="cv-accordion">
+                      {activeRoomsFiltered.map((room) => (
+                        <RoomRow
+                          key={room._id}
+                          room={room}
+                          c={counts?.[room._id] ?? EMPTY_COUNT}
+                          open={openIds.has(room._id)}
+                          onToggle={toggleRow}
+                          copiedId={copiedId}
+                          onCopy={copyCode}
+                          onEdit={openForm}
+                          onEnd={setEndRoom}
+                          onDelete={openDelete}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Past exams — secondary; hidden entirely when empty. */}
+                {pastRoomsList.length > 0 && (
+                  <>
+                    <h3 className="cv-list-heading">Past exams</h3>
+                    <div className="cv-accordion cv-accordion-muted">
+                      {pastRoomsFiltered.map((room) => (
+                        <RoomRow
+                          key={room._id}
+                          room={room}
+                          c={counts?.[room._id] ?? EMPTY_COUNT}
+                          open={openIds.has(room._id)}
+                          onToggle={toggleRow}
+                          copiedId={copiedId}
+                          onCopy={copyCode}
+                          onEdit={null}
+                          onEnd={null}
+                          onDelete={openDelete}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </section>
         </main>
       </div>
 

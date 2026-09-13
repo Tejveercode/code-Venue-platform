@@ -19,7 +19,7 @@
    danger tint + text; info items stay neutral — no fake urgency. */
 
 [data-code-venue-page] .cv-attention {
-  margin-top: 18px;
+  margin: 28px 0 4px; /* matches .cv-panel top rhythm so the page grid stays even */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -302,6 +302,13 @@
   }
 }
 
+[data-code-venue-page] .cv-mon-autosubmit {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8c2f22;
+}
+
 /* ---------- Plain-language violation events ---------- */
 
 [data-code-venue-page] .cv-mon-events {
@@ -326,7 +333,13 @@
 
 /* ---------- Accessibility ----------
    Visible keyboard focus on every interactive element in the monitoring
-   surface (buttons otherwise rely on color alone). */
+   surface and the room accordion (buttons otherwise rely on color alone). */
+
+[data-code-venue-page] .cv-acc-trigger:focus-visible {
+  outline: 2px solid var(--accent-caramel);
+  outline-offset: -2px; /* inside the rounded card, not clipped by overflow */
+  border-radius: 14px;
+}
 
 [data-code-venue-page] .cv-mon-row-head:focus-visible,
 [data-code-venue-page] .cv-mon-row-head:focus-within {
