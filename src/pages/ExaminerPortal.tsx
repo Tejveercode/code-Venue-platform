@@ -26,15 +26,36 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "@/lib/errors";
+import { VIOLATION_EVENT_LABELS } from "./violationEvents";
 
 type Room = Doc<"rooms">;
 type Counts = Record<string, { joined: number; submitted: number }>;
+
+type MonitoringRow = {
+  studentId: string;
+  name: string;
+  studentUid: string;
+  regNo: string | null;
+  violationCount: number;
+  flagged: boolean;
+  autoSubmittedAt: number | null;
+  breakdown: { blur: number; paste: number; copy: number; rejoin: number };
+  rejoins: number[];
+};
+
+type MonitoringData =
+  | { error: string }
+  | {
+      room: { violationLimit: number; status: string };
+      rows: MonitoringRow[];
+    };
 
 type RoomFormState = {
   name: string;
   prompt: string;
   durationMinutes: string;
   enrolledLimit: string;
+  violationLimit: string;
 };
 
 const EMPTY_FORM: RoomFormState = {
@@ -42,6 +63,7 @@ const EMPTY_FORM: RoomFormState = {
   prompt: "",
   durationMinutes: "60",
   enrolledLimit: "30",
+  violationLimit: "",
 };
 
 const StatCard = memo(function StatCard({
@@ -65,6 +87,126 @@ const StatCard = memo(function StatCard({
     </div>
   );
 });
+
+// ---------------------------------------------------------------------------
+// Live exam-session monitoring (owner-only, reactive via Convex subscription).
+// Shows per-student violation state and expands to the per-type breakdown.
+// ---------------------------------------------------------------------------
+
+const MonitoringRowItem = memo(function MonitoringRowItem({
+  row,
+}: {
+  row: MonitoringRow;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const flagged = row.flagged || row.autoSubmittedAt !== null;
+
+  return (
+    <div className={"cv-mon-row" + (flagged ? " flagged" : "")}>
+      <button
+        type="button"
+        className="cv-mon-row-head"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+      >
+        <span className="cv-mon-name">
+          {row.name}
+          {row.regNo && <span className="cv-mon-reg">{row.regNo}</span>}
+        </span>
+        <span className="cv-mon-meta">
+          {row.autoSubmittedAt !== null && (
+            <span className="cv-pill cv-pill-flag">Auto-submitted</span>
+          )}
+          {row.flagged && row.autoSubmittedAt === null && (
+            <span className="cv-pill cv-pill-flag">Flagged</span>
+          )}
+          <span
+            className={"cv-mon-count" + (flagged ? " danger" : "")}
+            title="Violations counted toward the limit"
+          >
+            {row.violationCount}
+          </span>
+        </span>
+      </button>
+      {expanded && (
+        <div className="cv-mon-breakdown">
+          <div className="cv-mon-grid">
+            {(Object.keys(VIOLATION_EVENT_LABELS) as (keyof typeof VIOLATION_EVENT_LABELS)[]).map(
+              (type) => (
+                <div key={type} className="cv-detail-cell">
+                  <span className="k">{VIOLATION_EVENT_LABELS[type]}</span>
+                  <span className="v">{row.breakdown[type]}</span>
+                </div>
+              ),
+            )}
+          </div>
+          {row.rejoins.length > 0 && (
+            <div className="cv-mon-rejoins">
+              <span className="k">Recent page loads</span>
+              {row.rejoins.slice(-6).reverse().map((ts) => (
+                <span key={ts} className="v">
+                  {format(ts, "MMM d, HH:mm:ss")}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+function MonitoringPanel({
+  roomId,
+  active,
+}: {
+  roomId: string;
+  active: boolean;
+}) {
+  // "skip" while the accordion is closed — one live subscription per open
+  // room, none for closed ones.
+  const data = useQuery(
+    api.exams.getRoomMonitoring,
+    active ? { roomId } : "skip",
+  ) as MonitoringData | undefined;
+
+  if (!active) return null;
+  if (data === undefined) {
+    return (
+      <div className="cv-monitor">
+        <div className="cv-monitor-head">
+          <h4>Live Monitoring</h4>
+          <Loader2 size={14} className="animate-spin" style={{ color: "var(--accent-caramel)" }} />
+        </div>
+      </div>
+    );
+  }
+  if ("error" in data) return null;
+
+  return (
+    <div className="cv-monitor">
+      <div className="cv-monitor-head">
+        <h4>Live Monitoring</h4>
+        <span className="cv-monitor-limit">
+          {data.room.violationLimit > 0
+            ? `Limit: ${data.room.violationLimit}`
+            : "Zero-tolerance"}
+        </span>
+      </div>
+      {data.rows.length === 0 ? (
+        <div className="cv-empty cv-mon-empty">
+          No students have joined yet — monitoring appears as they do.
+        </div>
+      ) : (
+        <div className="cv-mon-list">
+          {data.rows.map((row) => (
+            <MonitoringRowItem key={row.studentId} row={row} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ExaminerPortal() {
   const { user, signOut } = useAuth();
@@ -212,6 +354,8 @@ export default function ExaminerPortal() {
         prompt: room.prompt,
         durationMinutes: String(room.durationMinutes),
         enrolledLimit: String(room.enrolledLimit),
+        // Blank = zero-tolerance (server treats 0/absent identically).
+        violationLimit: room.violationLimit ? String(room.violationLimit) : "",
       });
     } else {
       setEditRoom(null);
@@ -234,6 +378,14 @@ export default function ExaminerPortal() {
     if (!Number.isFinite(enrolled) || enrolled < 1)
       return setFormError("Enrolled students must be at least 1.");
 
+    const violationLimitRaw = form.violationLimit.trim();
+    let violationLimit: number | undefined;
+    if (violationLimitRaw !== "") {
+      violationLimit = parseInt(violationLimitRaw, 10);
+      if (!Number.isFinite(violationLimit) || violationLimit < 0)
+        return setFormError("Violation limit must be 0 or more (blank = zero-tolerance).");
+    }
+
     setSaving(true);
     try {
       if (editRoom) {
@@ -243,6 +395,7 @@ export default function ExaminerPortal() {
           prompt: form.prompt.trim(),
           durationMinutes: duration,
           enrolledLimit: enrolled,
+          violationLimit,
         });
       } else {
         await createRoom({
@@ -250,6 +403,7 @@ export default function ExaminerPortal() {
           prompt: form.prompt.trim(),
           durationMinutes: duration,
           enrolledLimit: enrolled,
+          violationLimit,
         });
       }
       setFormOpen(false);
@@ -473,7 +627,17 @@ export default function ExaminerPortal() {
                             {c.joined} joined / {room.enrolledLimit} limit
                           </span>
                         </div>
+                        <div className="cv-detail-cell">
+                          <span className="k">Violation limit</span>
+                          <span className="v">
+                            {room.violationLimit
+                              ? `${room.violationLimit} (auto-submit after)`
+                              : "Zero-tolerance"}
+                          </span>
+                        </div>
                       </div>
+
+                      <MonitoringPanel roomId={room._id} active={openIds.has(room._id)} />
 
                       <div className="cv-progress">
                         <div className="cv-progress-label">
@@ -614,6 +778,26 @@ export default function ExaminerPortal() {
                 disabled={saving}
               />
             </div>
+          </div>
+          <div className="cv-field">
+            <label className="cv-label" htmlFor="room-violation-limit">
+              Violation limit <span>(optional)</span>
+            </label>
+            <input
+              id="room-violation-limit"
+              className="cv-input"
+              type="number"
+              min={0}
+              value={form.violationLimit}
+              onChange={(e) => setForm({ ...form, violationLimit: e.target.value })}
+              placeholder="Blank = zero-tolerance (first violation flags)"
+              disabled={saving}
+            />
+            <p className="cv-field-hint">
+              Counts tab switches, pastes, and copies combined. Blank/0 flags the
+              student on the first violation; a number (e.g. 3) warns the student
+              and auto-submits their exam when they exceed it.
+            </p>
           </div>
           <div className="cv-modal-actions">
             <button

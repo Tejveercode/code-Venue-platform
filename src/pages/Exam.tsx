@@ -12,6 +12,7 @@ import { Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useParams } from "react-router";
+import type { ViolationType } from "./violationEvents";
 import {
   getStudentIdentity,
   persistStudentUid,
@@ -138,6 +139,8 @@ export default function Exam() {
 
   const save = useMutation(api.exams.saveSubmission);
   const join = useMutation(api.exams.joinRoom);
+  const logEvent = useMutation(api.exams.logViolationEvent);
+  const logRejoin = useMutation(api.exams.logRejoinEvent);
 
   // Editor state
   const [codeValue, setCodeValue] = useState("");
@@ -158,6 +161,12 @@ export default function Exam() {
   const [rejoinName, setRejoinName] = useState("");
   const [rejoinError, setRejoinError] = useState<string | null>(null);
   const [rejoining, setRejoining] = useState(false);
+
+  // Exam-session monitoring. The client only REPORTS events as they happen
+  // (one mutation per occurrence); the server tallies and enforces. All we
+  // render here is what the server tells us back.
+  const [warning, setWarning] = useState<string | null>(null);
+  const [autoSubmitted, setAutoSubmitted] = useState(false);
 
   useEffect(() => {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
@@ -291,6 +300,78 @@ export default function Exam() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [fullscreen]);
+
+  // --- Exam-session monitoring (client REPORTS, server DECIDES) ------------
+
+  const reportRef = useRef(logEvent);
+  reportRef.current = logEvent;
+
+  const reportEvent = useCallback(
+    (type: ViolationType) => {
+      if (!clientId || lockedRef.current) return;
+      void reportRef
+        .current({
+          clientId,
+          type,
+          currentCode: codeRef.current,
+        })
+        .then(
+          (res: {
+            warningsLeft?: number | null;
+            limit?: number;
+            overLimit?: boolean;
+            error?: string;
+            dropped?: boolean;
+          }) => {
+            if (res.error || res.dropped) return;
+            if (res.overLimit) {
+              // The server auto-submitted this exam and locked the editor.
+              // mySub flips to isFinal: true reactively; add the reason.
+              setAutoSubmitted(true);
+              setWarning(null);
+              return;
+            }
+            if (
+              typeof res.warningsLeft === "number" &&
+              typeof res.limit === "number" &&
+              res.limit > 0
+            ) {
+              const label =
+                type === "blur"
+                  ? "Tab switch detected"
+                  : type === "paste"
+                    ? "Paste detected"
+                    : "Copy detected";
+              const used = res.limit - res.warningsLeft;
+              setWarning(
+                `${label} — ${used} of ${res.limit} warnings before your exam is auto-submitted.`,
+              );
+            }
+          },
+        )
+        .catch(() => {
+          // Transient failure to report an event: never block the exam.
+        });
+    },
+    [clientId],
+  );
+
+  // Tab-switch / window-blur count.
+  useEffect(() => {
+    if (!clientId || locked) return;
+    const onBlur = () => reportEvent("blur");
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, [clientId, locked, reportEvent]);
+
+  // Rejoin count: one event per exam-page load for this clientId (including
+  // the very first join). Fire-and-forget — failures never block the exam.
+  const rejoinLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!clientId || rejoinLoggedRef.current) return;
+    rejoinLoggedRef.current = true;
+    void logRejoin({ clientId }).catch(() => {});
+  }, [clientId, logRejoin]);
 
   // --- Early states (all hooks above) -------------------------------------
 
@@ -454,6 +535,20 @@ export default function Exam() {
             </div>
           )}
 
+          {warning && !locked && (
+            <div className="cv-banner cv-banner-warn" role="alert">
+              {warning}
+            </div>
+          )}
+
+          {autoSubmitted && (
+            <div className="cv-banner cv-banner-danger" role="alert">
+              Your exam was auto-submitted because you exceeded the violation
+              limit set by your examiner. Your current code has been recorded as
+              your final submission.
+            </div>
+          )}
+
           <QuestionBox prompt={roomState.prompt} />
 
           <div
@@ -497,6 +592,15 @@ export default function Exam() {
               }}
               onBlur={() => {
                 if (dirty) void doSave();
+              }}
+              onPaste={() => {
+                // Detection-only: the paste proceeds normally. We report the
+                // EVENT (type + count) — never the clipboard content, which
+                // is deliberately never read or transmitted.
+                reportEvent("paste");
+              }}
+              onCopy={() => {
+                reportEvent("copy");
               }}
               spellCheck={false}
               placeholder="// Write your solution here — your code autosaves as you type"
