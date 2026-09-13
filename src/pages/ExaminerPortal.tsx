@@ -605,7 +605,10 @@ export default function ExaminerPortal() {
               <div className="cv-empty">Loading rooms…</div>
             ) : rooms.length === 0 ? (
               <div className="cv-empty">
-                No exam rooms yet. Create your first room to get a shareable code.
+                No exam rooms yet. Click <strong>Create New Room</strong> above,
+                write your question, then share the generated code (CV-####)
+                with your class — students enter it on the Student page. Their
+                work appears under <strong>View Submissions</strong>.
               </div>
             ) : filteredRooms.length === 0 ? (
               <div className="cv-empty">No rooms match "{search}".</div>
@@ -758,8 +761,8 @@ export default function ExaminerPortal() {
             </label>
             <textarea
               id="room-prompt"
-              className="cv-textarea"
-              rows={5}
+              className="cv-textarea cv-textarea-tall"
+              rows={9}
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
               placeholder="Write the exact problem students will see above their editor…"
@@ -798,7 +801,7 @@ export default function ExaminerPortal() {
           </div>
           <div className="cv-field">
             <label className="cv-label" htmlFor="room-violation-limit">
-              Violation limit <span>(optional)</span>
+              Tab-switch / copy warnings <span>(optional)</span>
             </label>
             <input
               id="room-violation-limit"
@@ -807,13 +810,16 @@ export default function ExaminerPortal() {
               min={0}
               value={form.violationLimit}
               onChange={(e) => setForm({ ...form, violationLimit: e.target.value })}
-              placeholder="Blank = zero-tolerance (first violation flags)"
+              placeholder="Leave blank to flag any tab-switch or copy immediately"
               disabled={saving}
             />
             <p className="cv-field-hint">
-              Counts tab switches, pastes, and copies combined. Blank/0 flags the
-              student on the first violation; a number (e.g. 3) warns the student
-              and auto-submits their exam when they exceed it.
+              During the exam, Code Venue records when a student switches tabs,
+              pastes into, or copies out of the code editor (it cannot block
+              these). Leave blank or 0: the first switch flags the student to
+              you, with no warning shown to them. Enter a number (e.g. 3): the
+              student gets that many on-screen warnings, then their exam is
+              auto-submitted with their latest code.
             </p>
           </div>
           <div className="cv-modal-actions">

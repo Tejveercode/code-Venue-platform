@@ -84,6 +84,7 @@ function AuthCard() {
   const [name, setName] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Dedupes the post-auth decision across StrictMode's double effect run.
   const decidingRef = useRef(false);
@@ -158,6 +159,25 @@ function AuthCard() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Resend the OTP to the same address. Going through signIn again issues a
+  // fresh code and resets the rate-limit window the same way a first send
+  // does; the existing per-email limiter still caps abuse.
+  const handleResend = async () => {
+    if (resending) return;
+    setResending(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set("email", email);
+      await signIn("email-otp", formData);
+      savePendingFlow({ email, step: "code", at: Date.now() });
+    } catch (err) {
+      setError(getErrorMessage(err, "Couldn't send a new code. Please try again."));
+    } finally {
+      setResending(false);
     }
   };
 
@@ -323,6 +343,13 @@ function AuthCard() {
             </button>
             <p className="cv-form-footer">
               Didn't get it?{" "}
+              <button
+                type="button"
+                onClick={() => void handleResend()}
+                disabled={resending}
+              >
+                {resending ? "Sending again…" : "Resend code"}
+              </button>{" "}
               <button
                 type="button"
                 onClick={() => {

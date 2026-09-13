@@ -750,6 +750,13 @@ code-venue-page a,
   line-height: 1.6;
 }
 
+/* Room-question textarea: exam prompts are long, multi-paragraph text —
+   give it real writing room (still user-resizable). */
+[data-code-venue-page] .cv-textarea.cv-textarea-tall {
+  min-height: 220px;
+  font-size: 14px;
+}
+
 [data-code-venue-page] .cv-error {
   display: block;
   font-size: 13px;

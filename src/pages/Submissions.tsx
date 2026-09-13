@@ -246,7 +246,7 @@ export default function Submissions() {
               </h1>
               <p className="cv-sub">
                 {room
-                  ? `${rows.length} of ${room.enrolledLimit} enrolled students have submitted.`
+                  ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalRows.length} final ${finalRows.length === 1 ? "submission" : "submissions"} ready to grade or download.`
                   : "Loading room…"}
               </p>
             </div>
@@ -272,8 +272,9 @@ export default function Submissions() {
             <div className="cv-empty">{data.error}</div>
           ) : rows.length === 0 ? (
             <div className="cv-empty">
-              No submissions yet. Once students join and submit their code, it
-              will appear here for grading.
+              No submissions yet — this page fills in as students join and
+              write code. It updates live, so you can leave it open during the
+              exam and watch drafts save in real time.
             </div>
           ) : (
             <div className="cv-sub-grid">

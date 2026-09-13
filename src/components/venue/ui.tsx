@@ -91,7 +91,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
           }
           to="/examiner-portal"
         >
-          Examiner
+          For Teachers
         </Link>
       </li>
       <li>
