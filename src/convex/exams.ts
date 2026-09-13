@@ -108,6 +108,33 @@ async function requireOwnedRoom(
   return room;
 }
 
+/**
+ * Enforce case-insensitive room-name uniqueness within one examiner's rooms
+ * (create + rename). Throws a user-facing ConvexError the form displays
+ * inline. `ignoreRoomId` exempts the room being renamed, so saving a room
+ * with its own current name is never a false collision.
+ */
+async function assertUniqueRoomName(
+  ctx: MutationCtx,
+  examinerId: Id<"examiners">,
+  name: string,
+  ignoreRoomId?: Id<"rooms">,
+): Promise<void> {
+  const needle = name.trim().toLowerCase();
+  const owned = await ctx.db
+    .query("rooms")
+    .withIndex("by_examiner", (q) => q.eq("examinerId", examinerId))
+    .collect();
+  const clash = owned.some(
+    (r) => r._id !== ignoreRoomId && r.name.trim().toLowerCase() === needle,
+  );
+  if (clash) {
+    throw new ConvexError(
+      `You already have a room named "${name.trim()}". Choose a different name.`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Examiners
 // ---------------------------------------------------------------------------
@@ -334,6 +361,7 @@ export const createRoom = mutation({
 
     // Validation — the UI checks too, but never trust the client.
     const name = validateRoomName(args.name);
+    await assertUniqueRoomName(ctx, examiner._id, name);
     const prompt = validateRoomPrompt(args.prompt);
     const durationMinutes = validateDuration(args.durationMinutes);
     const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);
@@ -450,6 +478,9 @@ export const updateRoom = mutation({
     }
 
     const name = validateRoomName(args.name);
+    // Rename must not collide with this examiner's OTHER rooms (the room's
+    // own current name is allowed — that's a no-op rename).
+    await assertUniqueRoomName(ctx, examiner._id, name, args.roomId);
     const prompt = validateRoomPrompt(args.prompt);
     const durationMinutes = validateDuration(args.durationMinutes);
     const enrolledLimit = validateEnrolledLimit(args.enrolledLimit);

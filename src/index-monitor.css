@@ -178,3 +178,41 @@
 [data-code-venue-page] .cv-mon-rejoins .v {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Narrow screens ----------
+   The row head is one flex line (name + ID + flags + count). Under 480px it
+   wraps: name+ID stay on the first line (name truncates with ellipsis so an
+   unbounded student name can never push the meta out of the viewport), the
+   flag pill and count drop to a second line. */
+
+@media (max-width: 480px) {
+  [data-code-venue-page] .cv-mon-row-head {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  [data-code-venue-page] .cv-mon-name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  [data-code-venue-page] .cv-mon-name > :first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-code-venue-page] .cv-mon-reg {
+    flex: none;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-code-venue-page] .cv-mon-meta {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

@@ -110,7 +110,9 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
         aria-expanded={expanded}
       >
         <span className="cv-mon-name">
-          {row.name}
+          {/* Inner span so the ellipsis truncation on narrow screens targets
+              the name text only — never the ID chip beside it. */}
+          <span>{row.name}</span>
           {row.regNo && <span className="cv-mon-reg">{row.regNo}</span>}
         </span>
         <span className="cv-mon-meta">
@@ -386,6 +388,21 @@ export default function ExaminerPortal() {
         return setFormError("Violation limit must be 0 or more (blank = zero-tolerance).");
     }
 
+    // Instant client-side duplicate-name check (case-insensitive, scoped to
+    // this examiner's rooms; rename ignores the room being edited). The
+    // server re-checks authoritatively — this is only for immediate feedback
+    // without a round trip.
+    const nameCollision = rooms.some(
+      (r) =>
+        r._id !== editRoom?._id &&
+        r.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
+    );
+    if (nameCollision) {
+      return setFormError(
+        `You already have a room named "${form.name.trim()}". Choose a different name.`,
+      );
+    }
+
     setSaving(true);
     try {
       if (editRoom) {
@@ -541,7 +558,7 @@ export default function ExaminerPortal() {
               <h1>{greeting}</h1>
               <p className="cv-sub">{greetingSub}</p>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div className="cv-page-actions">
               <button
                 className="cv-btn cv-btn-secondary"
                 onClick={openProfile}

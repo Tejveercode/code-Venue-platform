@@ -218,6 +218,31 @@ export function Modal({ open, onClose, title, subtitle, children, footer }: Moda
     return () => clearTimeout(t);
   }, [open]);
 
+  // Lock background scroll while the modal is open. Setting overflow:hidden
+  // on <body> shifts the layout by the scrollbar width on desktop, so the
+  // previous scroll position is preserved with padding-right compensation
+  // and fully restored on close. Multiple stacked modals are covered because
+  // every open modal runs this effect and each restores exactly what it
+  // saved (stacked opens are last-one-wins for the lock, first-close
+  // restores — correct since a lock by any open modal blocks all scrolling).
+  useEffect(() => {
+    if (!open) return;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const prevOverflow = body.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `calc(${prevPaddingRight || "0px"} + ${scrollbarWidth}px)`;
+    }
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.paddingRight = prevPaddingRight;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
   if (!visible) return null;
 
   return (
@@ -256,18 +281,35 @@ export function AccordionRow({
   children: ReactNode;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
+  // Track the body height with a ResizeObserver on the inner content instead
+  // of a one-shot scrollHeight snapshot. Content that grows while the row is
+  // open (monitoring data arriving, a violation breakdown expanding, images
+  // loading) re-measures automatically — nothing is ever clipped, and the
+  // open/close max-height transition still works exactly as before.
   useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    if (open) {
-      // Measure the real content height so the animation is smooth
-      // regardless of content length, then let it grow naturally.
-      el.style.maxHeight = `${el.scrollHeight}px`;
-    } else {
-      el.style.maxHeight = "0px";
+    const body = bodyRef.current;
+    const content = contentRef.current;
+    if (!body || !content) return;
+    if (!open) {
+      body.style.maxHeight = "0px";
+      return;
     }
-  }, [open, children]);
+    const sync = () => {
+      body.style.maxHeight = `${content.scrollHeight}px`;
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(content);
+    // Window resize can reflow text without changing content height events
+    // in some browsers; sync once more on it for belt-and-braces coverage.
+    window.addEventListener("resize", sync);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, [open]);
 
   return (
     <div className={"cv-acc-item" + (open ? " open" : "")}>
@@ -281,7 +323,7 @@ export function AccordionRow({
         <ChevronDown size={18} className="cv-acc-chev" />
       </button>
       <div className="cv-acc-body" ref={bodyRef}>
-        <div className="cv-acc-content">{children}</div>
+        <div className="cv-acc-content" ref={contentRef}>{children}</div>
       </div>
     </div>
   );

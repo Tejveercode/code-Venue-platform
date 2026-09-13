@@ -852,6 +852,12 @@ code-venue-page a,
   flex-wrap: wrap;
 }
 
+[data-code-venue-page] .cv-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 [data-code-venue-page] .cv-page-head h1 {
   margin: 0;
   font-size: clamp(26px, 3.4vw, 34px);
@@ -1840,6 +1846,18 @@ code-venue-page a,
     width: 100%;
   }
   [data-code-venue-page] .cv-page-head .cv-btn-primary {
+    width: 100%;
+  }
+  /* Actions wrapper (Profile + Create New Room): stretch to the full row
+     and let the primary CTA span it — without flex:1 the wrapper shrinks to
+     content width and the width:100% below resolves to that, not the row. */
+  [data-code-venue-page] .cv-page-actions {
+    width: 100%;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  [data-code-venue-page] .cv-page-actions > * {
     width: 100%;
   }
   [data-code-venue-page] .cv-hero {
