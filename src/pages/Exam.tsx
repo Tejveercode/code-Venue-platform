@@ -128,6 +128,7 @@ export default function Exam() {
         studentName: string;
         studentUid: string;
         regNo: string | null;
+        autoSubmittedAt: number | null;
         submission: {
           code: string;
           isFinal: boolean;
@@ -192,6 +193,9 @@ export default function Exam() {
   }, [mySub, initialized]);
 
   const isFinal = mySub?.submission?.isFinal ?? false;
+  // Server-set when the violation limit was exceeded — keeps the explanation
+  // visible across reloads, not only in the session where enforcement ran.
+  const serverAutoSubmitted = mySub?.autoSubmittedAt != null;
   const roomClosed = roomState?.status === "CLOSED";
   const locked = isFinal || roomClosed;
   useEffect(() => {
@@ -541,7 +545,7 @@ export default function Exam() {
             </div>
           )}
 
-          {autoSubmitted && (
+          {(autoSubmitted || serverAutoSubmitted) && (
             <div className="cv-banner cv-banner-danger" role="alert">
               Your exam was auto-submitted because you exceeded the violation
               limit set by your examiner. Your current code has been recorded as

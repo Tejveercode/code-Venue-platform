@@ -1,5 +1,5 @@
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/hooks/use-auth";
 import {
   AccordionRow,
@@ -160,7 +160,7 @@ function MonitoringPanel({
   roomId,
   active,
 }: {
-  roomId: string;
+  roomId: Id<"rooms">;
   active: boolean;
 }) {
   // "skip" while the accordion is closed — one live subscription per open

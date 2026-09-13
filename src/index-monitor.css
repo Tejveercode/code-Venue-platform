@@ -1,10 +1,11 @@
 /*
-  Code Venue — violation-monitoring styles.
-  Loaded immediately after index.css; scoped to [data-code-venue-page] and
-  uses the same design tokens (caramel accent, cream surfaces, warm borders)
-  as the rest of the design system. Additive only.
+  Code Venue — exam-session monitoring styles (violation tracking).
+  Loaded after index.css; scoped to [data-code-venue-page] and built from the
+  same design tokens (caramel accent, cream surfaces, warm borders) as the
+  rest of the system. Additive only — nothing in index.css is overridden.
 */
 
+/* Danger banner variant (student: exam auto-submitted). */
 [data-code-venue-page] .cv-banner-danger {
   background: rgba(161, 61, 45, 0.14);
   border: 1px solid rgba(161, 61, 45, 0.4);
@@ -12,10 +13,11 @@
   font-weight: 600;
 }
 
-[data-code-venue-page] .cv-hint {
+/* Form-field helper text (violation-limit explanation in the room form). */
+[data-code-venue-page] .cv-field-hint {
   margin: 6px 0 0;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-sub);
 }
 
@@ -37,55 +39,86 @@
   margin-bottom: 10px;
 }
 
-[data-code-venue-page] .cv-monitor-title {
-  font-size: 13px;
+[data-code-venue-page] .cv-monitor-head h4 {
+  margin: 0;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-sub);
 }
 
-[data-code-venue-page] .cv-monitor-empty {
-  font-size: 13px;
-  color: var(--text-sub);
+[data-code-venue-page] .cv-monitor-limit {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-caramel);
+  background: var(--accent-glow);
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 
-[data-code-venue-page] .cv-monitor-row {
+[data-code-venue-page] .cv-mon-empty {
+  font-size: 13px;
+}
+
+[data-code-venue-page] .cv-mon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-code-venue-page] .cv-mon-row {
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+[data-code-venue-page] .cv-mon-row:hover {
+  background: var(--accent-glow);
+}
+
+[data-code-venue-page] .cv-mon-row.flagged {
+  background: rgba(161, 61, 45, 0.07);
+  border-color: rgba(161, 61, 45, 0.25);
+}
+
+[data-code-venue-page] .cv-mon-row-head {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  background: none;
+  border: none;
+  font-family: inherit;
   font-size: 13.5px;
-}
-
-[data-code-venue-page] .cv-monitor-row + .cv-monitor-row {
-  margin-top: 4px;
-}
-
-[data-code-venue-page] .cv-monitor-row:hover {
-  background: var(--accent-glow);
-}
-
-[data-code-venue-page] .cv-monitor-name {
-  font-weight: 600;
   color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-code-venue-page] .cv-mon-name {
+  font-weight: 600;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
 }
 
-[data-code-venue-page] .cv-monitor-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+[data-code-venue-page] .cv-mon-reg {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-sub);
 }
 
-[data-code-venue-page] .cv-monitor-flag {
+[data-code-venue-page] .cv-mon-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: none;
+}
+
+[data-code-venue-page] .cv-pill-flag {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -97,56 +130,51 @@
   padding: 2px 8px;
 }
 
-[data-code-venue-page] .cv-monitor-count {
-  flex: none;
+[data-code-venue-page] .cv-mon-count {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--text-sub);
 }
 
-[data-code-venue-page] .cv-monitor-row.flagged {
-  background: rgba(161, 61, 45, 0.07);
-  border-color: rgba(161, 61, 45, 0.25);
-}
-
-[data-code-venue-page] .cv-monitor-row.flagged .cv-monitor-count {
+[data-code-venue-page] .cv-mon-count.danger {
   color: #a13d2d;
 }
 
-[data-code-venue-page] .cv-monitor-breakdown {
-  margin: 4px 0 8px;
+[data-code-venue-page] .cv-mon-breakdown {
+  margin: 2px 6px 10px;
   padding: 10px 12px;
   background: var(--surface-color);
   border: 1px solid var(--surface-border);
   border-radius: 10px;
   font-size: 12.5px;
-  line-height: 1.7;
+}
+
+[data-code-venue-page] .cv-mon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+[data-code-venue-page] .cv-mon-grid .cv-detail-cell {
+  border: none;
+  padding: 0;
+  background: none;
+}
+
+[data-code-venue-page] .cv-mon-rejoins {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   color: var(--text-sub);
 }
 
-[data-code-venue-page] .cv-monitor-breakdown strong {
-  color: var(--text-main);
+[data-code-venue-page] .cv-mon-rejoins .k {
   font-weight: 600;
-}
-
-[data-code-venue-page] .cv-monitor-breakdown .cv-bd-title {
-  display: block;
-  font-weight: 700;
   color: var(--text-main);
-  margin-bottom: 4px;
 }
 
-[data-code-venue-page] .cv-monitor-toggle {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent-caramel);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-[data-code-venue-page] .cv-monitor-toggle:hover {
-  text-decoration: underline;
+[data-code-venue-page] .cv-mon-rejoins .v {
+  font-variant-numeric: tabular-nums;
 }

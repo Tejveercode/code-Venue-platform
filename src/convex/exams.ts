@@ -1071,6 +1071,10 @@ export const getMySubmission = query({
       studentName: student.name,
       studentUid: student.studentUid,
       regNo: student.regNo ?? null,
+      // Set server-side when this student's exam was auto-submitted for
+      // exceeding the room's violation limit — lets the explanation banner
+      // survive page reloads, not just the enforcing session.
+      autoSubmittedAt: student.autoSubmittedAt ?? null,
       submission: submission
         ? {
             code: submission.code,
