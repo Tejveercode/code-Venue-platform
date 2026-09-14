@@ -427,3 +427,329 @@
     transition: none;
   }
 }
+
+/* ===========================================================================
+   Examiner dashboard redesign — exam detail page + summary cards
+   (additive sheet: loads after index.css, so these rules win the cascade)
+   =========================================================================== */
+
+/* ---- Exam summary card (dashboard scan layer) --------------------------- */
+
+[data-code-venue-page] .cv-exam-card {
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  padding: 22px 24px;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Attention state — amber tint + left rail; ⚠ text carries the meaning,
+   color only reinforces it (never color-only). */
+[data-code-venue-page] .cv-exam-card-attention {
+  border-color: rgba(224, 122, 17, 0.45);
+  box-shadow: inset 3px 0 0 var(--accent-amber-deep);
+}
+
+[data-code-venue-page] .cv-exam-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+[data-code-venue-page] .cv-exam-card-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+[data-code-venue-page] .cv-exam-card-code {
+  margin-top: 8px;
+}
+
+[data-code-venue-page] .cv-exam-card-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+[data-code-venue-page] .cv-exam-metric {
+  font-size: 13px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+[data-code-venue-page] .cv-exam-metric strong {
+  font-size: 15px;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-exam-metric-warn {
+  color: var(--accent-amber-strong);
+  font-weight: 600;
+}
+
+/* Healthy state stays visually quiet — no green theater, just muted text. */
+[data-code-venue-page] .cv-exam-metric-quiet {
+  color: var(--text-sub);
+  opacity: 0.75;
+}
+
+[data-code-venue-page] .cv-exam-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+/* Slim progress bar inside the summary card */
+[data-code-venue-page] .cv-progress-slim {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-code-venue-page] .cv-progress-slim .cv-progress-bar {
+  flex: 1;
+}
+
+[data-code-venue-page] .cv-progress-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-code-venue-page] .cv-exam-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Past exams recede — same card, reduced presence. */
+[data-code-venue-page] .cv-exam-list-muted .cv-exam-card {
+  opacity: 0.72;
+}
+
+/* ---- Attention strip ----------------------------------------------------- */
+
+[data-code-venue-page] .cv-attention {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+[data-code-venue-page] .cv-attention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(60, 46, 36, 0.04);
+  border: 1px solid rgba(60, 46, 36, 0.12);
+}
+
+[data-code-venue-page] .cv-attention-item.warn {
+  background: var(--accent-amber-glow);
+  border-color: rgba(224, 122, 17, 0.35);
+}
+
+[data-code-venue-page] .cv-attention-text {
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-attention-item.warn .cv-attention-text {
+  color: var(--accent-amber-strong);
+  font-weight: 600;
+}
+
+/* ---- Stat card attention variant ---------------------------------------- */
+
+[data-code-venue-page] .cv-stat-card-attention {
+  border-color: rgba(224, 122, 17, 0.45);
+  background: linear-gradient(
+    to bottom,
+    var(--accent-amber-glow),
+    var(--surface-color) 70%
+  );
+}
+
+/* ---- Detail page (exam-level surface) ------------------------------------ */
+
+/* (.cv-back-link comes from index.css — shared by Submissions; one style for
+   every page, per the consistency contract.) */
+
+[data-code-venue-page] .cv-exam-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+[data-code-venue-page] .cv-exam-detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* Four task tabs (index.css .cv-tabs is a fixed 2-col student variant). */
+[data-code-venue-page] .cv-detail-tabs {
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 22px;
+}
+
+[data-code-venue-page] .cv-tab-badge {
+  display: inline-block;
+  margin-left: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-amber-strong);
+}
+
+[data-code-venue-page] .cv-detail-panel {
+  margin-bottom: 24px;
+}
+
+[data-code-venue-page] .cv-detail-hint {
+  font-size: 13px;
+  color: var(--text-sub);
+  margin: 16px 0 0;
+}
+
+[data-code-venue-page] .cv-settings-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+/* Danger zone — destructive actions clearly separated, red reserved for
+   destructive only (attention uses amber). */
+[data-code-venue-page] .cv-danger-zone {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border: 1px solid rgba(161, 61, 45, 0.3);
+  border-radius: 12px;
+  background: rgba(161, 61, 45, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+[data-code-venue-page] .cv-danger-zone h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #a13d2d;
+}
+
+[data-code-venue-page] .cv-danger-zone p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+/* Embedded submissions inside the detail page's Submissions tab */
+[data-code-venue-page] .cv-submissions-embed .cv-page-head {
+  background: rgba(60, 46, 36, 0.03);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+/* ---- Responsive: exam cards + tabs -------------------------------------- */
+
+@media (max-width: 860px) {
+  [data-code-venue-page] .cv-exam-card {
+    flex-direction: column;
+  }
+
+  [data-code-venue-page] .cv-exam-card-actions {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  [data-code-venue-page] .cv-exam-card-actions .cv-btn-primary {
+    flex: 1;
+  }
+
+  [data-code-venue-page] .cv-detail-tabs {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (max-width: 420px) {
+  [data-code-venue-page] .cv-exam-card {
+    padding: 18px 16px;
+  }
+
+  [data-code-venue-page] .cv-exam-card-stats {
+    gap: 10px 16px;
+  }
+
+  [data-code-venue-page] .cv-attention-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  [data-code-venue-page] .cv-attention-item .cv-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .cv-exam-card {
+    transition: none;
+  }
+}
+
+/* ===========================================================================
+   Navbar — centered 3-column grid (STEP 11)
+   index.css sets .cv-header { display:grid; grid-template-columns: 1fr auto 1fr }.
+   These rules place the five header children explicitly, because the mobile
+   hamburger + dropdown are also grid children:
+     desktop  → logo | centered nav | auth actions   (toggle+menu display:none)
+     ≤860px   → logo | —            | toggle          (nav+auth display:none)
+     menu open → dropdown spans ALL columns on row 2
+   =========================================================================== */
+
+[data-code-venue-page] .cv-menu-toggle {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+}
+
+[data-code-venue-page] .cv-mobile-menu {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* ---- Focus ring consistency for the restructured header ------------------ */
+
+[data-code-venue-page] .cv-logo:focus-visible,
+[data-code-venue-page] .cv-menu-toggle:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 3px;
+}

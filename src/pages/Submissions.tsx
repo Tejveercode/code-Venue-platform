@@ -125,12 +125,21 @@ const CodeView = memo(function CodeView({
   );
 });
 
-export default function Submissions() {
-  const { roomId } = useParams<{ roomId: string }>();
-  const data = useQuery(
-    api.exams.getRoomSubmissions,
-    roomId ? { roomId: roomId as Id<"rooms"> } : "skip",
-  ) as
+/**
+ * The full grading workflow for one room: student list + code viewer + ZIP
+ * download. Self-contained (owns its query, selection, and modal state) so
+ * it can render standalone at /submissions/:roomId OR embedded inside the
+ * exam detail page's Submissions tab — one implementation, never duplicated.
+ */
+export function SubmissionsView({
+  roomId,
+  embedded = false,
+}: {
+  roomId: Id<"rooms">;
+  /** Embedded: the parent page already shows room identity + a back link. */
+  embedded?: boolean;
+}) {
+  const data = useQuery(api.exams.getRoomSubmissions, { roomId }) as
     | {
         error?: string;
         room?: import("@/convex/_generated/dataModel").Doc<"rooms">;
@@ -144,10 +153,6 @@ export default function Submissions() {
   const [zipOpen, setZipOpen] = useState(false);
   const [zipName, setZipName] = useState("");
   const [zipping, setZipping] = useState(false);
-
-  useEffect(() => {
-    document.title = "Submissions — Code Venue";
-  }, []);
 
   // Auto-select the first row once data loads.
   useEffect(() => {
@@ -245,89 +250,96 @@ export default function Submissions() {
   );
 
   return (
-    <CodeVenuePage>
-      <div className="cv-shell">
-        <VenueHeader />
-        <main className="cv-page-wrap">
-          <Link to="/examiner-portal" className="cv-back-link">
-            <ArrowLeft size={15} /> Back to portal
-          </Link>
+    <>
+      {!embedded && (
+        <Link to="/examiner-portal" className="cv-back-link">
+          <ArrowLeft size={15} /> Back to portal
+        </Link>
+      )}
 
-          <div className="cv-page-head" style={{ marginBottom: 26 }}>
-            <div>
-              <h1 style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                {room ? room.name : "Submissions"}
-                {room?.status === "LIVE" ? <LivePill /> : <ClosedPill />}
-                {room && <CodePill code={room.code} />}
-              </h1>
-              <p className="cv-sub">
-                {room
-                  ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} ready to grade or download.`
-                  : "Loading room…"}
-              </p>
-            </div>
-            {data !== undefined && !data.error && rows.length > 0 && (
-              <button
-                className="cv-btn cv-btn-secondary cv-btn-sm"
-                onClick={openZipModal}
-              >
-                <Download size={14} /> Download All (ZIP)
-              </button>
-            )}
+      <div className="cv-page-head" style={{ marginBottom: 26 }}>
+        <div>
+          {embedded ? (
+            <p className="cv-sub" style={{ margin: 0 }}>
+              {room
+                ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} ready to grade or download.`
+                : "Loading room…"}
+            </p>
+          ) : (
+            <h1 style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              {room ? room.name : "Submissions"}
+              {room?.status === "LIVE" ? <LivePill /> : <ClosedPill />}
+              {room && <CodePill code={room.code} />}
+            </h1>
+          )}
+          {!embedded && (
+            <p className="cv-sub">
+              {room
+                ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} ready to grade or download.`
+                : "Loading room…"}
+            </p>
+          )}
+        </div>
+        {data !== undefined && !data.error && rows.length > 0 && (
+          <button
+            className="cv-btn cv-btn-secondary cv-btn-sm"
+            onClick={openZipModal}
+          >
+            <Download size={14} /> Download All (ZIP)
+          </button>
+        )}
+      </div>
+
+      {data === undefined ? (
+        <div className="cv-empty">Loading submissions…</div>
+      ) : data.error ? (
+        <div className="cv-empty">{data.error}</div>
+      ) : rows.length === 0 ? (
+        <div className="cv-empty">
+          No submissions yet — this page fills in as students join and
+          write code. It updates live, so you can leave it open during the
+          exam and watch drafts save in real time.
+        </div>
+      ) : (
+        <div className="cv-sub-grid">
+          <div className="cv-card cv-sub-list">
+            {rows.map((row) => (
+              <SubRow
+                key={row.studentId}
+                studentId={row.studentId}
+                name={row.name}
+                studentUid={row.studentUid}
+                regNo={row.regNo}
+                timeLabel={formatSubTime(
+                  row.submission!.isFinal,
+                  row.submission!.submittedAt,
+                  row.submission!.updatedAt,
+                )}
+                selected={row.studentId === selectedId}
+                downloadable={row.submission !== null}
+                onSelect={handleSelect}
+                onDownload={downloadOne}
+              />
+            ))}
           </div>
 
-          {data === undefined ? (
-            <div className="cv-empty">Loading submissions…</div>
-          ) : data.error ? (
-            <div className="cv-empty">{data.error}</div>
-          ) : rows.length === 0 ? (
-            <div className="cv-empty">
-              No submissions yet — this page fills in as students join and
-              write code. It updates live, so you can leave it open during the
-              exam and watch drafts save in real time.
-            </div>
-          ) : (
-            <div className="cv-sub-grid">
-              <div className="cv-card cv-sub-list">
-                {rows.map((row) => (
-                  <SubRow
-                    key={row.studentId}
-                    studentId={row.studentId}
-                    name={row.name}
-                    studentUid={row.studentUid}
-                    regNo={row.regNo}
-                    timeLabel={formatSubTime(
-                      row.submission!.isFinal,
-                      row.submission!.submittedAt,
-                      row.submission!.updatedAt,
-                    )}
-                    selected={row.studentId === selectedId}
-                    downloadable={row.submission !== null}
-                    onSelect={handleSelect}
-                    onDownload={downloadOne}
-                  />
-                ))}
+          <div className="cv-card cv-code-view">
+            {selected?.submission ? (
+              <CodeView
+                name={selected.name}
+                code={selected.submission.code}
+                isFinal={selected.submission.isFinal}
+              />
+            ) : (
+              <div className="cv-empty">
+                <FileCode2 size={20} style={{ marginBottom: 8 }} />
+                <br />
+                Select a student to view their submission.
               </div>
-
-              <div className="cv-card cv-code-view">
-                {selected?.submission ? (
-                  <CodeView
-                    name={selected.name}
-                    code={selected.submission.code}
-                    isFinal={selected.submission.isFinal}
-                  />
-                ) : (
-                  <div className="cv-empty">
-                    <FileCode2 size={20} style={{ marginBottom: 8 }} />
-                    <br />
-                    Select a student to view their submission.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Download All (ZIP) — editable filename before building the archive */}
       <Modal
@@ -387,6 +399,34 @@ export default function Submissions() {
           </p>
         </div>
       </Modal>
+    </>
+  );
+}
+
+export default function Submissions() {
+  const { roomId } = useParams<{ roomId: string }>();
+
+  useEffect(() => {
+    document.title = "Submissions — Code Venue";
+  }, []);
+
+  return (
+    <CodeVenuePage>
+      <div className="cv-shell">
+        <VenueHeader />
+        <main className="cv-page-wrap">
+          {roomId ? (
+            <SubmissionsView roomId={roomId as Id<"rooms">} />
+          ) : (
+            <div className="cv-empty">
+              This page needs a room.{" "}
+              <Link to="/examiner-portal" className="cv-link">
+                Back to your exams
+              </Link>
+            </div>
+          )}
+        </main>
+      </div>
     </CodeVenuePage>
   );
 }

@@ -12,7 +12,7 @@ import { Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useParams } from "react-router";
-import type { ViolationType } from "./violationEvents";
+import type { ViolationType } from "@/lib/violationEvents";
 import {
   getStudentIdentity,
   persistStudentUid,

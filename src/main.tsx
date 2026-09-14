@@ -15,6 +15,7 @@ const Landing = lazy(() => import("./pages/Landing.tsx"));
 const About = lazy(() => import("./pages/About.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const ExaminerPortal = lazy(() => import("./pages/ExaminerPortal.tsx"));
+const ExaminerExamDetail = lazy(() => import("./pages/ExaminerExamDetail.tsx"));
 const Submissions = lazy(() => import("./pages/Submissions.tsx"));
 const StudentPortal = lazy(() => import("./pages/StudentPortal.tsx"));
 const Exam = lazy(() => import("./pages/Exam.tsx"));
@@ -137,6 +138,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <ExaminerPortal />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/examiner/exams/:roomId"
+                element={
+                  <RequireAuth>
+                    <ExaminerExamDetail />
                   </RequireAuth>
                 }
               />

@@ -201,26 +201,26 @@ code-venue-page a,
 /* ---------- Header ---------- */
 
 [data-code-venue-page] .cv-header {
-  /* EXACT original rule — exactly three direct flex children spread by
-     justify-content: space-between:
-       1. .cv-logo (far left)
-       2. nav > ul.cv-nav-list, gap: 32px (center / left-center)
-       3. .cv-auth-buttons (far right)
-     The hamburger toggle + .cv-mobile-menu are display:none on desktop,
-     so the rendered layout is exactly those three children.
+  /* CENTERED NAVIGATION GRID (mission STEP 11).
+     Three-column model — `1fr auto 1fr` — keeps the nav mathematically
+     centered in the header regardless of how asymmetric the left (logo)
+     and right (auth/portal buttons) controls are. Under flex
+     space-between, the nav was merely the middle item, not the center;
+     when side widths diverged (e.g. "Sign Out" added on the portal), the
+     perceived nav position shifted with viewport/zoom. Side tracks are
+     min-width:0 so they can shrink; the nav itself never overlaps because
+     each side track + the nav are nowrap (see ladder bands below).
 
-     21st.dev navbar port: the header becomes sticky and condenses into a
-     floating glass pill once the page scrolls (see .cv-header.scrolled).
-     position: sticky (not fixed, as in the reference) so interior page
-     layouts are untouched and no offset compensation is needed. */
+     Keeps: sticky + glass-pill scroll behavior, compositor-layer promotion
+     (Android Chrome GPU tile-blending fix — translateZ(0) must stay), the
+     graduated 861–1020px shrink ladder, and the ≤860px hamburger collapse. */
   position: sticky;
   top: 0;
   z-index: 40;
   background: transparent;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   padding: 24px 24px;
   border-bottom: 1px solid var(--surface-border);
   /* Original pages centered the header row in a page container. */
@@ -244,6 +244,22 @@ code-venue-page a,
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+/* Grid children: side tracks may shrink, the three cells hold their rows. */
+[data-code-venue-page] .cv-logo {
+  justify-self: start;
+  min-width: 0;
+}
+
+[data-code-venue-page] .cv-nav {
+  justify-self: center;
+  min-width: 0;
+}
+
+[data-code-venue-page] .cv-auth-buttons {
+  justify-self: end;
+  min-width: 0;
 }
 
 /* Scrolled state — the 21st.dev floating glass pill, in venue colors. */

@@ -470,6 +470,19 @@ export const getRoomCounts = query({
   },
 });
 
+/**
+ * One room by id — owner-gated via requireOwnedRoom. Feeds the exam detail
+ * page's header/settings; foreign or deleted roomIds yield null, never data.
+ */
+export const getRoom = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const examiner = await getCurrentExaminer(ctx);
+    if (!examiner) return null;
+    return requireOwnedRoom(ctx, args.roomId, examiner._id);
+  },
+});
+
 /** Edit a room (only while LIVE). */
 export const updateRoom = mutation({
   args: {
