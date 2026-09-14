@@ -136,6 +136,11 @@
   --text-main: #2c2420;
   --text-sub: #6b5d52;
   --accent-caramel: #b5734a;
+  /* Deep caramel — the same hue family darkened to a text/fill-safe step.
+     White-on-deep = 6.5:1 (primary button fill); deep-on-glow = 5.1:1
+     (room-code pill text). Pure caramel stays for large-text/decorative
+     roles (logo em, hero emphasis) where ≥3:1 is the requirement. */
+  --accent-caramel-deep: #8a4f2a;
   --accent-light: #3d3128;
   --accent-glow: rgba(181, 115, 74, 0.22);
   /* Secondary accent — golden amber (brighter + more saturated than caramel,
@@ -223,9 +228,12 @@ code-venue-page a,
   align-items: center;
   padding: 24px 24px;
   border-bottom: 1px solid var(--surface-border);
-  /* Original pages centered the header row in a page container. */
+  /* Original pages centered the header row in a page container. The width
+     matches the 1100px content axis (.cv-page-wrap, Landing sections) so
+     the logo and page titles share one left edge on wide screens — at
+     1200px the logo sat 50px outside the content edge at 1920w. */
   width: 100%;
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
   transition:
     background-color 0.3s var(--ease-modal),
@@ -460,7 +468,10 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-btn-primary {
-  background: var(--accent-caramel);
+  /* Deep-caramel fill: white label = 6.5:1 (AA for normal-size labels —
+     the pure caramel fill measured only 3.8:1). Same hue family, one step
+     darker, so the brand color is unchanged — only the fill depth. */
+  background: var(--accent-caramel-deep);
   color: #fff;
   box-shadow: 0 8px 20px -10px var(--accent-caramel);
 }
@@ -876,7 +887,9 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-pill-code {
   background: var(--accent-glow);
-  color: var(--accent-caramel);
+  /* Deep caramel for the 12.5px code text: 5.1:1 on the glow background
+     (pure caramel measured 2.8:1 — below even the 3:1 large-text floor). */
+  color: var(--accent-caramel-deep);
   border: 1px solid rgba(181, 115, 74, 0.28);
   font-family: "Poppins", monospace;
   letter-spacing: 0.04em;
