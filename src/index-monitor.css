@@ -511,6 +511,14 @@
   flex-shrink: 0;
 }
 
+/* One action column = one button height. The card's secondary "End" action
+   would otherwise render at cv-btn-sm's 38px beside the 45px primary — the
+   column reads ragged. Size both to the same box (End keeps its smaller
+   typography, which is the intended hierarchy). */
+[data-code-venue-page] .cv-exam-card-actions .cv-btn {
+  min-height: 45px;
+}
+
 /* Slim progress bar inside the summary card */
 [data-code-venue-page] .cv-progress-slim {
   margin-top: 14px;
