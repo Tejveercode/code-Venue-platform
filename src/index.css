@@ -1879,13 +1879,18 @@ code-venue-page a,
   [data-code-venue-page] .cv-page-wrap {
     padding: 28px 16px 64px;
   }
-  /* 3-column stat card grid → 1 column */
+  /* 3-column stat card grid → 2×2 on mobile: four single-column cards
+     stacked made the summary needlessly tall; 2×2 keeps every label and
+     value readable while halving the vertical cost. */
   [data-code-venue-page] .cv-stat-row {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  [data-code-venue-page] .cv-stat-card {
+    padding: 16px 18px;
   }
   [data-code-venue-page] .cv-stat-value {
-    font-size: 28px;
+    font-size: 26px;
   }
   /* Room detail grid (Started / Enrolled) stacks vertically */
   [data-code-venue-page] .cv-detail-grid {

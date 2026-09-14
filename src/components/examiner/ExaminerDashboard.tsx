@@ -221,7 +221,9 @@ export function ExaminerDashboard({
         />
       </div>
 
-      {attentionItems.length > 0 && (
+      {/* Attention layer: warn/info items when actionable; a quiet
+          zero-state line when healthy — never an empty warning panel. */}
+      {attentionItems.length > 0 ? (
         <div className="cv-attention" role="status">
           {attentionItems.map((item) => (
             <div
@@ -248,6 +250,14 @@ export function ExaminerDashboard({
             </div>
           ))}
         </div>
+      ) : (
+        list.length > 0 && (
+          <div className="cv-attention cv-attention-quiet" role="status">
+            <div className="cv-attention-item quiet">
+              <span className="cv-attention-text">✓ No exams need attention</span>
+            </div>
+          </div>
+        )
       )}
 
       <section className="cv-card cv-panel">
@@ -285,6 +295,18 @@ export function ExaminerDashboard({
           </div>
         ) : (
           <>
+            {activeList.length === 0 && pastList.length > 0 && (
+              <div className="cv-empty cv-empty-compact">
+                <p className="cv-empty-title">No active exams</p>
+                <p className="cv-empty-sub">
+                  Create an exam to start a live coding session.
+                </p>
+                <button className="cv-btn cv-btn-primary" onClick={onCreate}>
+                  <Plus size={16} /> Create New Exam
+                </button>
+              </div>
+            )}
+
             {activeList.length > 0 && (
               <>
                 <h3 className="cv-list-heading">Active exams</h3>

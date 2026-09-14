@@ -653,11 +653,11 @@
 
 /* Tablet band (861–1024): the auto-fit stat grid collapses to one 393px-wide
    column here — measured premature stacking (four stacked 980px cards with
-   ~110px dead space each). Four columns still fit with comfortable padding.
-   Below 861 the mobile stack takes over by design. */
+   ~110px dead space each). Four 2×2 cards keep every label + value readable
+   in this band without the cramped ~200px columns four-up produced. */
 @media (min-width: 861px) and (max-width: 1024px) {
   [data-code-venue-page] .cv-stat-row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -772,4 +772,25 @@
 }
 [data-code-venue-page] .cv-empty .cv-btn-primary {
   margin: 0 auto;
+}
+
+/* Phase 6 — dashboard product refinement.
+   ROW 3 on exam cards: relative time context, quiet by design. */
+[data-code-venue-page] .cv-exam-time {
+  display: block;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  opacity: 0.85;
+}
+/* Attention zero state: calm line, no warn rail, no amber tint. */
+[data-code-venue-page] .cv-attention-quiet .cv-attention-item.quiet {
+  border-left: 3px solid transparent;
+  background: rgba(255, 253, 249, 0.7);
+  color: var(--text-sub);
+}
+/* "No active exams" compact variant inside the exams panel. */
+[data-code-venue-page] .cv-empty-compact {
+  margin-top: 6px;
+  padding: 24px 16px;
 }

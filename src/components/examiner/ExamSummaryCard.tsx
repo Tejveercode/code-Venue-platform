@@ -1,10 +1,21 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import { ChevronRight, Square } from "lucide-react";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ClosedPill, CodePill, LivePill } from "@/components/venue/ui";
 
 type Room = Doc<"rooms">;
+
+/** Compact relative time for scan-surface context ("12 min ago"). */
+function relTime(ts: number, now: number): string {
+  const mins = Math.max(0, Math.round((now - ts) / 60_000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
 
 export type RoomCounts = {
   joined: number;
@@ -38,6 +49,12 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
       ? Math.round((c.submitted / room.enrolledLimit) * 100)
       : 0;
   const needsAttention = c.flagged > 0 || c.autoSubmitted > 0;
+  // Card-local render clock, captured once per mounted card. Minute-level
+  // granularity is plenty for a scan surface; the label refreshes whenever
+  // the card re-renders on live counts/status changes.
+  const [now] = useState(() => Date.now());
+  const startedAt =
+    room.status === "LIVE" ? room.startedAt : (room.endedAt ?? room.startedAt);
 
   return (
     <div
@@ -98,6 +115,12 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           </div>
           <span className="cv-progress-pct">{pct}%</span>
         </div>
+
+        {/* ROW 3 — relative time context ("Started 12 min ago"), so a fresh
+            room and a room running for two hours don't look identical. */}
+        <span className="cv-exam-time">
+          {room.status === "LIVE" ? "Started" : "Ended"} {relTime(startedAt, now)}
+        </span>
       </div>
 
       <div className="cv-exam-card-actions">
