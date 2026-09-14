@@ -342,15 +342,20 @@ export function VoidFieldCanvas() {
     canvas.style.height = "100vh";
     canvas.style.zIndex = "-1";
     canvas.style.pointerEvents = "none";
-    // Readability: keep the field as ambience, not competition. Halving the
-    // canvas opacity puts peak dot contrast well under body-text contrast.
-    canvas.style.opacity = "0.5";
+    // Readability: keep the field as ambience, not competition. 0.7 puts peak
+    // dot contrast clearly visible in margins/gutters while staying well under
+    // body-text contrast (see the veil below for the text-zone balance).
+    canvas.style.opacity = "0.7";
     host.appendChild(canvas);
 
-    // Readability veil — a soft cream wash over the content band (where
-    // headlines and paragraphs live), fading to nothing toward the edges so
-    // the field stays visible around the margins. Sits above the canvas,
-    // below all page content, ignores pointers.
+    // Readability veil — a soft cream wash ONLY over the content band where
+    // headlines and paragraphs actually sit (60% × 48% ellipse at the text
+    // block's position), fading to nothing before the viewport edges so the
+    // field stays clearly visible in the margins and between sections. Peak
+    // alpha 0.5 (halved from 0.92): text behind the busiest dot still reads
+    // at ≥ 5.1:1 (AA), while the animation is no longer erased where it's
+    // most visible. Sits above the canvas, below all page content, ignores
+    // pointers.
     const veil = document.createElement("div");
     veil.setAttribute("aria-hidden", "true");
     veil.style.position = "fixed";
@@ -358,7 +363,7 @@ export function VoidFieldCanvas() {
     veil.style.zIndex = "-1";
     veil.style.pointerEvents = "none";
     veil.style.background =
-      "radial-gradient(ellipse 95% 70% at 50% 30%, rgba(247, 243, 236, 0.92) 0%, rgba(247, 243, 236, 0.6) 45%, rgba(247, 243, 236, 0) 78%)";
+      "radial-gradient(ellipse 60% 48% at 50% 32%, rgba(247, 243, 236, 0.5) 0%, rgba(247, 243, 236, 0.28) 55%, rgba(247, 243, 236, 0) 100%)";
     host.appendChild(veil);
 
     const c = buildController(canvas);

@@ -138,6 +138,15 @@
   --accent-caramel: #b5734a;
   --accent-light: #3d3128;
   --accent-glow: rgba(181, 115, 74, 0.22);
+  /* Secondary accent — golden amber (brighter + more saturated than caramel,
+     same warm family). Semantic "needs attention / live / highlight" color,
+     used sparingly: primary-CTA hover, the Live pill, flagged indicators,
+     attention banners, low-time state. The brick red family (#a13d2d) is
+     now reserved for destructive/error semantics only (Delete, End Exam,
+     validation errors) so warnings and destructive actions can't be confused. */
+  --accent-amber: #e07a11;
+  --accent-amber-strong: #92520a; /* amber darkened for text: 6.5:1 on cream */
+  --accent-amber-glow: rgba(224, 122, 17, 0.16);
   --ease-modal: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -430,8 +439,10 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-btn-primary:hover {
-  background: #a2643f;
-  box-shadow: 0 10px 24px -10px var(--accent-caramel);
+  /* Hover/active pop: the amber accent — a brighter step than the caramel
+     resting state, so the primary CTA visibly energizes on hover. */
+  background: var(--accent-amber);
+  box-shadow: 0 10px 24px -10px var(--accent-amber-strong);
 }
 
 [data-code-venue-page] .cv-btn-secondary {
@@ -454,6 +465,14 @@ code-venue-page a,
 [data-code-venue-page] .cv-btn-danger:hover {
   background: rgba(161, 61, 45, 0.08);
   border-color: rgba(161, 61, 45, 0.55);
+}
+
+/* Keyboard focus ring across the button family — amber (the highlight
+   accent) so focus is visible on every surface, including amber-tinted
+   backgrounds themselves. */
+[data-code-venue-page] .cv-btn:focus-visible {
+  outline: 2px solid var(--accent-amber-strong);
+  outline-offset: 2px;
 }
 
 [data-code-venue-page] .cv-btn-sm {
@@ -808,7 +827,9 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-pill-live {
-  background: var(--accent-caramel);
+  /* The Live pill is the strongest "this is happening now" signal in the
+     product — the amber accent separates it from the caramel brand chrome. */
+  background: var(--accent-amber);
   color: #fff;
 }
 
