@@ -147,6 +147,7 @@
   --accent-amber: #e07a11;
   --accent-amber-strong: #92520a; /* amber darkened for text: 6.5:1 on cream */
   --accent-amber-glow: rgba(224, 122, 17, 0.16);
+  --accent-amber-deep: #9a4c07; /* amber fill for white-text surfaces: 5.2:1 */
   --ease-modal: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -440,9 +441,15 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-btn-primary:hover {
   /* Hover/active pop: the amber accent — a brighter step than the caramel
-     resting state, so the primary CTA visibly energizes on hover. */
-  background: var(--accent-amber);
+     resting state, so the primary CTA visibly energizes on hover. The deep
+     amber fill keeps white label text ≥ 5:1 (the bright amber base would be
+     ~3:1, below AA for this size). */
+  background: var(--accent-amber-deep);
   box-shadow: 0 10px 24px -10px var(--accent-amber-strong);
+}
+
+[data-code-venue-page] .cv-btn-primary:active {
+  background: var(--accent-amber-deep);
 }
 
 [data-code-venue-page] .cv-btn-secondary {
@@ -828,8 +835,9 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-pill-live {
   /* The Live pill is the strongest "this is happening now" signal in the
-     product — the amber accent separates it from the caramel brand chrome. */
-  background: var(--accent-amber);
+     product — the amber accent separates it from the caramel brand chrome.
+     Deep fill so the white label + dot stay ≥ 5:1 (bright amber is ~3:1). */
+  background: var(--accent-amber-deep);
   color: #fff;
 }
 
