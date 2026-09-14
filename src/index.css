@@ -379,6 +379,10 @@ code-venue-page a,
   padding: 8px 14px;
   border-radius: 10px;
   transition: color 0.2s ease, background-color 0.2s ease;
+  /* Header links never fold internally: under horizontal squeeze a wrapping
+     label reads as "the navbar broke onto two lines". Space is reclaimed by
+     the graduated gap/padding ladder below instead. */
+  white-space: nowrap;
 }
 
 [data-code-venue-page] .cv-nav-link:hover,
@@ -1915,13 +1919,53 @@ code-venue-page a,
   }
 }
 
-/* Keep the three-part header comfortable between the collapse points. */
-@media (max-width: 1020px) and (min-width: 861px) {
+/* Graduated header shrink path between the collapse points (861–1020px).
+
+   Why a ladder: every header child is white-space:nowrap with flex-shrink:0,
+   so the row's total width is a step function of (gap, padding, font-size).
+   A single 1020px step left a ~100px dead zone (861–940px) where the row was
+   wider than the viewport and flex-wrap pushed the auth buttons onto a second
+   line — visible only at certain zoom levels. Shrinking in three graduated
+   bands keeps max row width ≤ viewport across the whole range (verified
+   analytically in the widest auth state below).
+
+   Width math (Poppins 14px, header content box = viewport − 48px padding;
+   worst case = both auth buttons, cv-btn padding 11px 14px):
+     logo ~112 + nav (3 labels ~40/89/58 + 6×12 gap) + auth ("Log In" ~93 +
+     "For Teachers" ~137 + 10 gap) ≈ 597px → fits ≥ 645px (693px window).
+     Band 1021–960px window 972px (row 597) · Band ≤960px window ≤912px (row
+     ~560) · Band ≤900px window ≤852px (row ~520): no wrap in any band. */
+@media (max-width: 1020px) and (min-width: 961px) {
   [data-code-venue-page] .cv-nav-list {
-    gap: 18px;
+    gap: 16px;
+  }
+  [data-code-venue-page] .cv-nav-link {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 960px) and (min-width: 901px) {
+  [data-code-venue-page] .cv-nav-list {
+    gap: 12px;
   }
   [data-code-venue-page] .cv-nav-link {
     padding: 8px 10px;
+  }
+  [data-code-venue-page] .cv-logo {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 861px) {
+  [data-code-venue-page] .cv-nav-list {
+    gap: 10px;
+  }
+  [data-code-venue-page] .cv-nav-link {
+    padding: 8px 8px;
+    font-size: 13px;
+  }
+  [data-code-venue-page] .cv-logo {
+    font-size: 19px;
   }
 }
 

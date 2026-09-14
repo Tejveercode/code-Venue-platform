@@ -160,11 +160,22 @@ export default function Submissions() {
 
   const rows = data?.rows ?? [];
 
-  // Only final submissions are downloadable — drafts are excluded from both
-  // the zip and the individual download buttons.
-  const finalRows = useMemo(
-    () => rows.filter((r) => r.submission?.isFinal === true),
+  // Downloads include every existing submission — final and draft alike,
+  // regardless of room status (LIVE or CLOSED; the server applies no status
+  // filter either). This is the single source of truth for BOTH the ZIP and
+  // the per-student download buttons, so the two flows can never diverge.
+  // Draft files are marked with a "-draft" filename suffix inside the ZIP so
+  // the examiner can tell unfinished work from final submissions.
+  const downloadRows = useMemo(
+    () => rows.filter((r) => r.submission !== null),
     [rows],
+  );
+
+  // How many of the downloadable rows are final (grading-focused count for
+  // the header sentence and the ZIP modal).
+  const finalCount = useMemo(
+    () => downloadRows.filter((r) => r.submission?.isFinal === true).length,
+    [downloadRows],
   );
 
   const selected = useMemo(
@@ -187,15 +198,20 @@ export default function Submissions() {
   }, [room]);
 
   const confirmZip = useCallback(async () => {
-    if (finalRows.length === 0) return;
+    if (downloadRows.length === 0) return;
     setZipping(true);
     try {
       // JSZip is lazy-loaded here so it never enters the initial bundle.
       const { default: JSZip } = await loadZipLib();
       const zip = new JSZip();
       const used = new Set<string>();
-      for (const r of finalRows) {
+      for (const r of downloadRows) {
         let fname = submissionFileName(r.name, r.studentUid, r.regNo);
+        // Draft submissions are marked so they can't be mistaken for final
+        // work when the archive mixes both.
+        if (!r.submission?.isFinal) {
+          fname = fname.replace(/\.txt$/, "-draft.txt");
+        }
         // Belt-and-braces against duplicate names inside the archive.
         let n = 2;
         while (used.has(fname)) fname = fname.replace(/\.txt$/, `-${n++}.txt`);
@@ -214,7 +230,7 @@ export default function Submissions() {
     } finally {
       setZipping(false);
     }
-  }, [finalRows, safeZipBase]);
+  }, [downloadRows, safeZipBase]);
 
   const downloadOne = useCallback(
     (studentId: string) => {
@@ -246,7 +262,7 @@ export default function Submissions() {
               </h1>
               <p className="cv-sub">
                 {room
-                  ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalRows.length} final ${finalRows.length === 1 ? "submission" : "submissions"} ready to grade or download.`
+                  ? `${rows.length} of ${room.enrolledLimit} seats have students in them; ${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} ready to grade or download.`
                   : "Loading room…"}
               </p>
             </div>
@@ -254,12 +270,6 @@ export default function Submissions() {
               <button
                 className="cv-btn cv-btn-secondary cv-btn-sm"
                 onClick={openZipModal}
-                disabled={finalRows.length === 0}
-                title={
-                  finalRows.length === 0
-                    ? "No final submissions yet — drafts are not downloadable."
-                    : undefined
-                }
               >
                 <Download size={14} /> Download All (ZIP)
               </button>
@@ -325,9 +335,11 @@ export default function Submissions() {
         onClose={() => setZipOpen(false)}
         title="Download all submissions"
         subtitle={
-          finalRows.length === 1
-            ? "1 final submission will be included. Drafts are excluded."
-            : `${finalRows.length} final submissions will be included. Drafts are excluded.`
+          downloadRows.length === finalCount
+            ? `${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} will be included.`
+            : finalCount === 0
+              ? `${downloadRows.length} draft ${downloadRows.length === 1 ? "submission" : "submissions"} will be included, marked as drafts in the ZIP.`
+              : `${finalCount} final and ${downloadRows.length - finalCount} draft ${downloadRows.length - finalCount === 1 ? "submission" : "submissions"} will be included. Drafts are marked in their filenames.`
         }
         footer={
           <>
