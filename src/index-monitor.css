@@ -651,6 +651,16 @@
 
 /* ---- Responsive: exam cards + tabs -------------------------------------- */
 
+/* Tablet band (861–1024): the auto-fit stat grid collapses to one 393px-wide
+   column here — measured premature stacking (four stacked 980px cards with
+   ~110px dead space each). Four columns still fit with comfortable padding.
+   Below 861 the mobile stack takes over by design. */
+@media (min-width: 861px) and (max-width: 1024px) {
+  [data-code-venue-page] .cv-stat-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 860px) {
   [data-code-venue-page] .cv-exam-card {
     flex-direction: column;
