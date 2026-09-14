@@ -102,12 +102,14 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
 
       <div className="cv-exam-card-actions">
         {/* THE primary action. Everything else about this exam is one click
-            away inside the detail page. */}
+            away inside the detail page. Ended exams' primary intent is
+            reviewing outcomes — the label follows the intent. */}
         <button
           className="cv-btn cv-btn-primary"
           onClick={() => navigate(`/examiner/exams/${room._id}`)}
         >
-          View Exam <ChevronRight size={15} />
+          {room.status === "LIVE" ? "View Exam" : "View Results"}{' '}
+          <ChevronRight size={15} />
         </button>
         {/* Contextual secondary action — only meaningful while LIVE. */}
         {onEnd && (

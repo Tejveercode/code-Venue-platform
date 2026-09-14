@@ -756,3 +756,20 @@
     background: var(--surface-color);
   }
 }
+
+/* Phase 5 — examiner-dashboard-only refinements.
+   Empty state: one message + ONE obvious action (in place, not "above"). */
+[data-code-venue-page] .cv-empty-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+[data-code-venue-page] .cv-empty-sub {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+[data-code-venue-page] .cv-empty .cv-btn-primary {
+  margin: 0 auto;
+}

@@ -268,11 +268,16 @@ export function ExaminerDashboard({
         {rooms === undefined ? (
           <div className="cv-empty">Loading exams…</div>
         ) : list.length === 0 ? (
+          /* Empty state = one message + ONE obvious action in place (the
+             workflow details live in the room form and detail page). */
           <div className="cv-empty">
-            No exam rooms yet. Click <strong>Create New Exam</strong> above,
-            write your question, then share the generated code (CV-####) with
-            your class — students enter it on the Student page. Their work
-            appears in each exam's Submissions tab.
+            <p className="cv-empty-title">No exam rooms yet</p>
+            <p className="cv-empty-sub">
+              Create your first exam, then share its code with your class.
+            </p>
+            <button className="cv-btn cv-btn-primary" onClick={onCreate}>
+              <Plus size={16} /> Create New Exam
+            </button>
           </div>
         ) : noResults ? (
           <div className="cv-empty">
