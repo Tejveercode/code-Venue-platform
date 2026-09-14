@@ -342,6 +342,14 @@ export function VoidFieldCanvas() {
     canvas.style.height = "100vh";
     canvas.style.zIndex = "-1";
     canvas.style.pointerEvents = "none";
+    // Own compositor layer for the animating surface — without it, some
+    // mobile GPUs (Adreno/Mali) mis-blend the tiles of the sticky header
+    // stacked above this canvas, flickering the navbar on every page. This
+    // is the standard fix (same pattern as fixed-background/pannellum-style
+    // layer promotion); no visual change on desktop.
+    canvas.style.transform = "translateZ(0)";
+    canvas.style.willChange = "transform";
+    canvas.style.backfaceVisibility = "hidden";
     // Readability: keep the field as ambience, not competition. 0.7 puts peak
     // dot contrast clearly visible in margins/gutters while staying well under
     // body-text contrast (see the veil below for the text-zone balance).

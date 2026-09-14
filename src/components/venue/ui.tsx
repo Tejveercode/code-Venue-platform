@@ -47,9 +47,17 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   // costs no re-renders except at the threshold crossings.
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
+    // Hysteresis, not a single threshold: when Android Chrome collapses/
+    // expands the URL bar, scrollY oscillates around any fixed cutoff, which
+    // flips `scrolled` back and forth and visibly blinks the header between
+    // its two geometries. Entering the scrolled state at >60px and leaving
+    // it only below <44px gives a dead band the oscillation can't cross.
+    const ENTER = 60;
+    const EXIT = 44;
     const onScroll = () => {
       setScrolled((prev) => {
-        const next = window.scrollY > 50;
+        const y = window.scrollY;
+        const next = prev ? y > EXIT : y > ENTER;
         return prev === next ? prev : next;
       });
     };

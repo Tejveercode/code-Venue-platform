@@ -187,11 +187,23 @@ export default function StudentPortal() {
               </button>
             </form>
 
-            <p className="cv-form-footer">
-              No account needed — your exam identity is tied to this browser.
-              You'll receive a unique ID (e.g. <strong>S-7F3K2Q</strong>) after
-              joining; use it to identify your submission file.
-            </p>
+            {/* Three scannable steps instead of a run-on paragraph: each idea
+                (no account, the ID you receive, what the ID is for) gets its
+                own numbered line so it can be skimmed in one pass. */}
+            <div className="cv-join-guide" aria-label="How joining works">
+              <p>
+                <span className="cv-guide-num" aria-hidden="true">1</span>
+                <span>No account needed — your exam identity stays in this browser.</span>
+              </p>
+              <p>
+                <span className="cv-guide-num" aria-hidden="true">2</span>
+                <span>You'll get a unique ID right after joining (e.g. <strong>S-7F3K2Q</strong>).</span>
+              </p>
+              <p>
+                <span className="cv-guide-num" aria-hidden="true">3</span>
+                <span>Your submission downloads as <strong>{`{name}_{ID}`}.txt</strong> — that ID is how your examiner finds your file.</span>
+              </p>
+            </div>
           </div>
         </div>
       </div>

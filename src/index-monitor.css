@@ -360,6 +360,46 @@
   color: var(--text-sub);
 }
 
+/* ---------- Student join guide ----------
+   The pre-join helper text, restructured as three numbered one-line steps
+   (was a single run-on paragraph mixing three ideas). */
+[data-code-venue-page] .cv-join-guide {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+[data-code-venue-page] .cv-join-guide p {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .cv-join-guide strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+[data-code-venue-page] .cv-guide-num {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-glow);
+  color: var(--accent-caramel);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 /* ---------- Accessibility ----------
    Visible keyboard focus on every interactive element in the monitoring
    surface and the room accordion (buttons otherwise rely on color alone). */
