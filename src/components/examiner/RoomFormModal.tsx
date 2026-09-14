@@ -3,7 +3,7 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import { Modal } from "@/components/venue/ui";
 import { getErrorMessage } from "@/lib/errors";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "convex/react";
 
 type Room = Doc<"rooms">;
@@ -61,15 +61,17 @@ export function RoomFormModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Seeding contract: the parent mounts this modal with
-  // `key={editRoom?._id ?? "new"}` and only while open, so `form`
-  // initializes from the correct room exactly once. Reset on close so a
-  // remount for a different room never sees stale text.
-  useEffect(() => {
+  // `key={editRoom?._id ?? "new"}`, so `form` initializes from the correct
+  // room. On close, reset via the React-sanctioned render-phase adjustment
+  // (not an effect) so a remount for a different room never sees stale text.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) {
       setForm(editRoom ? roomToForm(editRoom) : EMPTY_FORM);
       setFormError(null);
     }
-  }, [open, editRoom]);
+  }
 
   const submitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

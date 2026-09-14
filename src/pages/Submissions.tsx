@@ -154,16 +154,22 @@ export function SubmissionsView({
   const [zipName, setZipName] = useState("");
   const [zipping, setZipping] = useState(false);
 
-  // Auto-select the first row once data loads.
-  useEffect(() => {
-    if (data?.rows && data.rows.length > 0 && selectedId === null) {
-      setSelectedId(data.rows[0]!.studentId);
-    }
-  }, [data, selectedId]);
-
+  // Auto-select the first row once data loads (see derived `selected` below —
+  // no effect needed).
   const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
-  const rows = data?.rows ?? [];
+  // Memoized so the memos/callbacks below don't invalidate on every render
+  // while the query streams (data identity changes only on real updates).
+  const rows = useMemo(() => data?.rows ?? [], [data]);
+
+  // Selection = the clicked student, falling back to the first row so the
+  // code viewer is never empty on load. Derived, not an effect — no extra
+  // render pass, and a removed row degrades to the list head automatically.
+  const selected = useMemo(
+    () =>
+      rows.find((r) => r.studentId === selectedId) ?? rows[0] ?? null,
+    [rows, selectedId],
+  );
 
   // Downloads include every existing submission — final and draft alike,
   // regardless of room status (LIVE or CLOSED; the server applies no status
@@ -181,11 +187,6 @@ export function SubmissionsView({
   const finalCount = useMemo(
     () => downloadRows.filter((r) => r.submission?.isFinal === true).length,
     [downloadRows],
-  );
-
-  const selected = useMemo(
-    () => rows.find((r) => r.studentId === selectedId) ?? null,
-    [rows, selectedId],
   );
 
   const safeZipBase = useMemo(

@@ -47,20 +47,19 @@ export default function ExaminerPortal() {
   const ensureInFlight = useRef(false);
 
   // First-ever visit ⇒ new-user greeting. The `welcomed` flag is
-  // backend-computed so it survives reloads; greetedAsNew latches the
-  // decision for the whole session so markExaminerWelcomed can't swap the
-  // heading mid-visit.
+  // backend-computed so it survives reloads; greetedAsNew latches ONCE for
+  // the whole session (when the query first reports welcomed === false) so
+  // markExaminerWelcomed can't swap the heading mid-visit. Latched as a
+  // render-phase adjustment on the query result — no effect cascade.
   const [greetedAsNew, setGreetedAsNew] = useState(false);
-
-  useEffect(() => {
-    if (
-      examiner !== undefined &&
-      examiner !== null &&
-      examiner.welcomed === false
-    ) {
-      setGreetedAsNew(true);
-    }
-  }, [examiner]);
+  if (
+    !greetedAsNew &&
+    examiner !== undefined &&
+    examiner !== null &&
+    examiner.welcomed === false
+  ) {
+    setGreetedAsNew(true);
+  }
 
   useEffect(() => {
     document.title = "Examiner Portal — Code Venue";

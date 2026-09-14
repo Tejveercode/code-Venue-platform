@@ -9,7 +9,6 @@ import {
 } from "./_generated/server";
 import {
   MAX_LIST_ROOMS,
-  MAX_COUNT_ROOMS,
   MAX_ROOM_IDS_PER_QUERY,
   AUTOSAVE_MIN_INTERVAL_MS,
   MAX_CLIENT_ID,

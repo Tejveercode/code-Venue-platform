@@ -1,6 +1,6 @@
-import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
-import { ChevronDown, Equal, X } from "lucide-react";
+import { Equal, X } from "lucide-react";
 import { VoidFieldCanvas } from "./VoidFieldCanvas";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -61,23 +61,30 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
         return prev === next ? prev : next;
       });
     };
-    onScroll();
+    // Sync once on mount WITHOUT calling setState synchronously inside the
+    // effect body (react-hooks lint): rAF defers it to the next frame.
+    const raf = requestAnimationFrame(onScroll);
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
-  // Close the mobile menu whenever the route changes.
-  useEffect(() => {
+  // Close the mobile menu whenever the route changes — render-phase
+  // adjustment (React's "derive state from props" pattern) rather than an
+  // effect, so no extra render pass is scheduled.
+  const [prevPath, setPrevPath] = useState(location.pathname);
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname);
     setMenuOpen(false);
-  }, [location.pathname]);
+  }
 
-  // EXACT original header structure — exactly three direct flex children
-  // spread by justify-content: space-between:
-  //   1. .cv-logo (far left)
-  //   2. nav > ul.cv-nav-list (gap: 32px — naturally center/left-center)
-  //   3. .cv-auth-buttons (far right)
-  // The hamburger toggle + mobile menu are display:none on desktop, so
-  // desktop always renders exactly the three-child space-between layout.
+  // Header structure (layout contract lives in CSS — .cv-header is a
+  // centered 1fr auto 1fr grid; see index.css + index-monitor.css):
+  //   row 1: .cv-logo (left) · nav (center) · .cv-auth-buttons (right)
+  //   ≤860px: nav/auth collapse away; the hamburger occupies the right cell
+  //   .cv-mobile-menu spans all columns on row 2 when open
   const path = location.pathname;
   const navLinks = (
     <>
@@ -209,22 +216,24 @@ type ModalProps = {
 };
 
 export function Modal({ open, onClose, title, subtitle, children, footer }: ModalProps) {
+  // Enter/exit transition state, kept as render-phase adjustments on the
+  // `open` prop (React's derive-state-from-props pattern) so opening/closing
+  // never schedules an extra cascade render. `shown` flips one frame after
+  // mount via rAF so the CSS opacity transition runs; on close we wait out
+  // the transition before unmounting the dialog node.
   const [visible, setVisible] = useState(open);
   const [shown, setShown] = useState(false);
-
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setVisible(true);
-      // Double rAF so the mount paints before the transition kicks in.
-      const raf = requestAnimationFrame(() =>
-        requestAnimationFrame(() => setShown(true)),
-      );
-      return () => cancelAnimationFrame(raf);
+      requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+    } else {
+      setShown(false);
+      setTimeout(() => setVisible(false), 300); // match transition
     }
-    setShown(false);
-    const t = setTimeout(() => setVisible(false), 300); // match transition
-    return () => clearTimeout(t);
-  }, [open]);
+  }
 
   // Lock background scroll while the modal is open. Setting overflow:hidden
   // on <body> shifts the layout by the scrollbar width on desktop, so the
@@ -273,66 +282,5 @@ export function Modal({ open, onClose, title, subtitle, children, footer }: Moda
   );
 }
 
-// ---------------------------------------------------------------------------
-// Accordion row — animates max-height to the measured scrollHeight via JS
-// ---------------------------------------------------------------------------
-
-export function AccordionRow({
-  open,
-  onToggle,
-  header,
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  header: ReactNode;
-  children: ReactNode;
-}) {
-  const bodyRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-
-  // Track the body height with a ResizeObserver on the inner content instead
-  // of a one-shot scrollHeight snapshot. Content that grows while the row is
-  // open (monitoring data arriving, a violation breakdown expanding, images
-  // loading) re-measures automatically — nothing is ever clipped, and the
-  // open/close max-height transition still works exactly as before.
-  useEffect(() => {
-    const body = bodyRef.current;
-    const content = contentRef.current;
-    if (!body || !content) return;
-    if (!open) {
-      body.style.maxHeight = "0px";
-      return;
-    }
-    const sync = () => {
-      body.style.maxHeight = `${content.scrollHeight}px`;
-    };
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(content);
-    // Window resize can reflow text without changing content height events
-    // in some browsers; sync once more on it for belt-and-braces coverage.
-    window.addEventListener("resize", sync);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", sync);
-    };
-  }, [open]);
-
-  return (
-    <div className={"cv-acc-item" + (open ? " open" : "")}>
-      <button
-        type="button"
-        className="cv-acc-trigger"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        {header}
-        <ChevronDown size={18} className="cv-acc-chev" />
-      </button>
-      <div className="cv-acc-body" ref={bodyRef}>
-        <div className="cv-acc-content" ref={contentRef}>{children}</div>
-      </div>
-    </div>
-  );
-}
+// (AccordionRow removed — the room accordion was replaced by the exam
+// summary cards + /examiner/exams/:roomId detail page; no consumers remain.)

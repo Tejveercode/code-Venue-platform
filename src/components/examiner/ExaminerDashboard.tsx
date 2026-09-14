@@ -1,6 +1,6 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Plus, Search } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { ExamSummaryCard, type RoomCounts } from "./ExamSummaryCard";
 
 type Room = Doc<"rooms">;

@@ -13,7 +13,7 @@ import { MonitoringPanel } from "@/components/examiner/MonitoringPanel";
 import { RoomFormModal } from "@/components/examiner/RoomFormModal";
 import { SubmissionsView } from "@/pages/Submissions";
 import { format } from "date-fns";
-import { ArrowLeft, ChevronRight, Loader2, Pencil, Square, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Pencil, Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -73,6 +73,7 @@ function ExaminerExamDetailInner() {
   const deleteRoomMutation = useMutation(api.exams.deleteRoom);
 
   const [tab, setTab] = useState<TabKey>("overview");
+  const [codeCopied, setCodeCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -302,12 +303,29 @@ function ExaminerExamDetailInner() {
                       <button
                         className="cv-btn cv-btn-secondary"
                         onClick={() => {
-                          void navigator.clipboard
+                          navigator.clipboard
                             .writeText(room.code)
-                            .catch(() => {});
+                            .then(() => {
+                              setCodeCopied(true);
+                              setTimeout(
+                                () => setCodeCopied(false),
+                                1500,
+                              );
+                            })
+                            .catch(() => {
+                              // clipboard unavailable — button state unchanged
+                            });
                         }}
                       >
-                        Copy Room Code
+                        {codeCopied ? (
+                          <>
+                            <Check size={14} /> Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} /> Copy Room Code
+                          </>
+                        )}
                       </button>
                     </div>
                   ) : (
