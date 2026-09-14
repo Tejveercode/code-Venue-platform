@@ -512,6 +512,7 @@ code-venue-page a,
   font-size: 13px;
   padding: 8px 14px;
   border-radius: 10px;
+  min-height: 40px;
 }
 
 [data-code-venue-page] .cv-btn-block {

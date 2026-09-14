@@ -511,10 +511,9 @@
   flex-shrink: 0;
 }
 
-/* One action column = one button height. The card's secondary "End" action
-   would otherwise render at cv-btn-sm's 38px beside the 45px primary — the
-   column reads ragged. Size both to the same box (End keeps its smaller
-   typography, which is the intended hierarchy). */
+/* Buttons in a shared action row/column resolve to the same structural
+   height (tier: primary/base 45px, compact 40px) regardless of variant, so
+   paired actions align. Typography still differentiates tiers. */
 [data-code-venue-page] .cv-exam-card-actions .cv-btn {
   min-height: 45px;
 }
@@ -549,41 +548,6 @@
 /* Past exams recede — same card, reduced presence. */
 [data-code-venue-page] .cv-exam-list-muted .cv-exam-card {
   opacity: 0.72;
-}
-
-/* ---- Attention strip ----------------------------------------------------- */
-
-[data-code-venue-page] .cv-attention {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-[data-code-venue-page] .cv-attention-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(60, 46, 36, 0.04);
-  border: 1px solid rgba(60, 46, 36, 0.12);
-}
-
-[data-code-venue-page] .cv-attention-item.warn {
-  background: var(--accent-amber-glow);
-  border-color: rgba(224, 122, 17, 0.35);
-}
-
-[data-code-venue-page] .cv-attention-text {
-  font-size: 13px;
-  color: var(--text-main);
-}
-
-[data-code-venue-page] .cv-attention-item.warn .cv-attention-text {
-  color: var(--accent-amber-strong);
-  font-weight: 600;
 }
 
 /* ---- Stat card attention variant ---------------------------------------- */
@@ -760,4 +724,25 @@
 [data-code-venue-page] .cv-menu-toggle:focus-visible {
   outline: 2px solid var(--accent-amber);
   outline-offset: 3px;
+}
+
+/* ===========================================================================
+   Phase 3 refinement — surface treatment (TASK 8)
+   Cards read as calm surfaces, not opaque white blocks: a 4% cream blend
+   lets the ambient field whisper through while all text levels keep AA+
+   contrast (surface at worst ~#FAF7F2 vs cream bg #F7F3EC — the ~2% lift is
+   invisible next to the border). Opaque white stays for inputs/modals.
+   =========================================================================== */
+
+[data-code-venue-page] .cv-card,
+[data-code-venue-page] .cv-exam-card {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+/* Reduced-transparency / forced-colors users get the solid surface back. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-code-venue-page] .cv-card,
+  [data-code-venue-page] .cv-exam-card {
+    background: var(--surface-color);
+  }
 }

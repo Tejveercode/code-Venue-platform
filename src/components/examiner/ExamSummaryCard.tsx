@@ -54,9 +54,9 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           <CodePill code={room.code} />
         </div>
 
-        {/* Three glance metrics — the numbers a teacher checks from across
-            the room. Flagged renders only when non-zero (attention cue,
-            ⚠ + words so it never relies on color alone). */}
+        {/* Glance metrics — the numbers a teacher checks from across the
+            room. Attention facts (flagged / auto-submitted) render only when
+            non-zero: ⚠ + words, never color alone. Level-1 data. */}
         <div className="cv-exam-card-stats">
           <span className="cv-exam-metric">
             <strong>{c.joined}</strong> / {room.enrolledLimit} students
@@ -64,11 +64,17 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           <span className="cv-exam-metric">
             <strong>{c.submitted}</strong> submitted
           </span>
-          {c.flagged > 0 ? (
+          {c.flagged > 0 && (
             <span className="cv-exam-metric cv-exam-metric-warn">
               ⚠ {c.flagged} flagged
             </span>
-          ) : (
+          )}
+          {c.autoSubmitted > 0 && (
+            <span className="cv-exam-metric cv-exam-metric-warn">
+              ⚠ {c.autoSubmitted} auto-submitted
+            </span>
+          )}
+          {c.flagged === 0 && c.autoSubmitted === 0 && (
             <span className="cv-exam-metric cv-exam-metric-quiet">
               No flags
             </span>
