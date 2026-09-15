@@ -462,6 +462,14 @@
   min-width: 0;
 }
 
+/* The card's content column: min-width:0 lets a long exam name wrap
+   (h3 has overflow-wrap:anywhere) instead of stretching the flex row
+   while the fixed action column keeps its width. */
+[data-code-venue-page] .cv-exam-card-main {
+  min-width: 0;
+  flex: 1;
+}
+
 [data-code-venue-page] .cv-exam-card-title h3 {
   margin: 0;
   font-size: 18px;
@@ -651,6 +659,18 @@
 
 /* ---- Responsive: exam cards + tabs -------------------------------------- */
 
+/* Search field in the ≤860px stacked panel head: the head is
+   flex-direction:column there, so the desktop flex-basis would resolve as
+   HEIGHT (a 240px-tall wrapper, icon centered 97px off the input). Reset to
+   auto basis + full width so the icon centers against the real input box. */
+@media (max-width: 860px) {
+  [data-code-venue-page] .cv-search-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+  }
+}
+
 /* Tablet band (861–1024): the auto-fit stat grid collapses to one 393px-wide
    column here — measured premature stacking (four stacked 980px cards with
    ~110px dead space each). Four 2×2 cards keep every label + value readable
@@ -793,4 +813,18 @@
 [data-code-venue-page] .cv-empty-compact {
   margin-top: 6px;
   padding: 24px 16px;
+}
+
+/* Phase 7 — stat-row responsive ladder (flex row; see index.css).
+   The row is now display:flex, so the old grid-template-columns overrides
+   from earlier phases are inert; these flex-basis rules produce the same
+   mandated ladders without touching the shared card family:
+     ≤860px   → 2×2 (dashboard KPI cards; Landing's 3-card proof row keeps
+                 its natural 3-up wrap via the 220px base basis)
+     861–1024 → 2×2 (kills the ragged 3+1 auto-fit row in the tablet band)
+     >1024    → 4-up (base 220px basis × 4 fits the 1100px content axis) */
+@media (max-width: 1024px) {
+  [data-code-venue-page] .cv-kpi-row .cv-stat-card {
+    flex: 1 1 42%;
+  }
 }

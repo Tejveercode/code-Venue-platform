@@ -644,7 +644,10 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-role-cta {
-  margin-top: 6px;
+  /* Pinned to the card's bottom edge: with unequal paragraph lengths the
+     two role cards' CTAs still align on one baseline row. */
+  margin-top: auto;
+  padding-top: 8px;
   font-size: 14px;
   font-weight: 600;
   color: var(--accent-caramel);
@@ -656,7 +659,13 @@ code-venue-page a,
 [data-code-venue-page] .cv-feature-section {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 72px 24px 96px;
+  padding: 64px 24px 80px;
+}
+
+/* Adjacent sections collapse their padding so the proof strip → features
+   gap is one rhythm unit (80px), not 96 + 72 = 168px of dead air. */
+[data-code-venue-page] .cv-feature-section + .cv-feature-section {
+  padding-top: 0;
 }
 
 [data-code-venue-page] .cv-section-title {
@@ -953,14 +962,23 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-stat-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  /* Flex row, not auto-fit grid: the auto-fit grid was shared by two
+     different card families — Landing's 3 proof cards and the dashboard's
+     4 KPI cards — and forced both into the same column math (on the
+     dashboard it produced a ragged 3+1 row just below its width floor,
+     and page-level overrides here leaked into Landing). Flex + a shared
+     flex-basis lets each page size its own row without overriding the
+     other. */
+  display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   margin-top: 32px;
 }
 
 [data-code-venue-page] .cv-stat-card {
   padding: 22px 24px;
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 [data-code-venue-page] .cv-stat-label {
@@ -1577,6 +1595,33 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-search {
   max-width: 300px;
+}
+
+/* Search field: the icon lives in a positioned wrapper alongside the input,
+   so it is vertically centered against the input's real height at any font
+   size or zoom — no pixel offsets. The input's left padding reserves the
+   icon's column; flex lets the field fill the panel head without squeezing
+   the heading. */
+[data-code-venue-page] .cv-search-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 300px;
+}
+
+[data-code-venue-page] .cv-search-icon {
+  position: absolute;
+  left: 14px; 
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-sub);
+  pointer-events: none;
+}
+
+[data-code-venue-page] .cv-search-wrap .cv-search {
+  /* 14px icon inset + 15px glyph + 9px gap before the placeholder. */
+  padding-left: 38px;
+  max-width: none;
 }
 
 [data-code-venue-page] .cv-field-row {

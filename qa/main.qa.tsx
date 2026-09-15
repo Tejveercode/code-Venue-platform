@@ -5,6 +5,8 @@ import "../src/index.css";
 import "../src/index-monitor.css";
 import { ExaminerDashboard, type Counts } from "@/components/examiner/ExaminerDashboard";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
+import Landing from "@/pages/Landing";
+import About from "@/pages/About";
 
 // ---------------------------------------------------------------------------
 // QA harness — mounts the REAL ExaminerDashboard + VenueHeader with scripted
@@ -125,10 +127,12 @@ function Root() {
   useEffect(() => {
     window.__qaSetScenario = (k: string) => setKey(k);
   }, []);
+  // "landing" / "about" render the real pages (in MemoryRouter, useNavigate
+  // works); any other key renders the examiner dashboard scenario.
   return (
     <StrictMode>
       <MemoryRouter initialEntries={["/examiner-portal"]}>
-        <QAApp key={key} scenarioKey={key} />
+        {key === "landing" ? <Landing /> : key === "about" ? <About /> : <QAApp key={key} scenarioKey={key} />}
       </MemoryRouter>
     </StrictMode>
   );

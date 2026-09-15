@@ -60,7 +60,7 @@ const TEAM: Member[] = [
   { initials: "TS", name: "Tejveer Singh", role: "Co-founder · Engineering", href: "https://github.com/Tejveercode" },
   { initials: "AS", name: "Akashdeep Singh", role: "Co-founder · Engineering", href: "https://github.com/Akash-Grewal" },
   { initials: "AR", name: "Aditya Rangta", role: "Engineering", href: "https://github.com/Aditya-Rangta" },
-  { initials: "DG", name: "Danish Gupta", role: "Engineering" },
+  { initials: "DG", name: "Danish Gupta", role: "Engineering", href: "https://github.com/Craftedcode623" },
 ];
 
 export default function About() {

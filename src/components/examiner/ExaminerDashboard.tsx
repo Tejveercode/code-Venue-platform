@@ -190,7 +190,10 @@ export function ExaminerDashboard({
         </div>
       </div>
 
-      <div className="cv-stat-row">
+      {/* cv-kpi-row: page-specific responsive ladder (2×2 ≤1024px) scoped
+          here so the shared .cv-stat-row family keeps Landing's 3-card
+          proof row sizing independent. */}
+      <div className="cv-stat-row cv-kpi-row">
         <StatCard label="Active Exams" value={activeCount} live />
         <StatCard label="Total Students" value={totalStudents} />
         <StatCard
