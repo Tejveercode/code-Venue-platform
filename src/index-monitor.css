@@ -6,11 +6,11 @@
 */
 
 /* Auto-submitted explanation banner (student view): an attention state —
-   what happened and why — so amber, not the destructive red. */
+   what happened and why — so teal, not the destructive red. */
 [data-code-venue-page] .cv-banner-danger {
-  background: var(--accent-amber-glow);
-  border: 1px solid rgba(146, 82, 10, 0.35);
-  color: var(--accent-amber-strong);
+  background: var(--accent-secondary-glow);
+  border: 1px solid rgba(40, 120, 106, 0.35);
+  color: var(--accent-secondary-deep);
   font-weight: 600;
 }
 
@@ -41,10 +41,10 @@
 }
 
 /*
-  Attention color semantics (amber accent family).
+  Attention color semantics (secondary teal accent family).
 
-  The amber tokens live in index.css :root (--accent-amber #e07a11,
-  --accent-amber-strong #92520a, --accent-amber-glow). The brick red
+  The teal tokens live in index.css :root (--accent-secondary #28786a,
+  --accent-secondary-deep #1c5c52, --accent-secondary-glow). The brick red
   (#a13d2d) is reserved for destructive/error semantics only — Delete,
   End Exam, validation errors — so a warning can never be mistaken for a
   destructive action and vice versa. These overrides live in this additive
@@ -53,27 +53,27 @@
 */
 
 [data-code-venue-page] .cv-attention-item.warn {
-  border-left-color: var(--accent-amber);
-  background: var(--accent-amber-glow);
+  border-left-color: var(--accent-secondary);
+  background: var(--accent-secondary-glow);
 }
 
 [data-code-venue-page] .cv-attention-item.warn .cv-attention-text {
-  color: var(--accent-amber-strong);
+  color: var(--accent-secondary-deep);
   font-weight: 600;
 }
 
 /* Low exam time: an attention state (act soon), not a destructive one. */
 [data-code-venue-page] .cv-timer.low {
-  color: var(--accent-amber-strong);
-  border-color: rgba(146, 82, 10, 0.4);
-  background: var(--accent-amber-glow);
+  color: var(--accent-secondary-deep);
+  border-color: rgba(40, 120, 106, 0.4);
+  background: var(--accent-secondary-glow);
 }
 
-/* Warning banner: amber (attention), not red. */
+/* Warning banner: teal (attention), not red. */
 [data-code-venue-page] .cv-banner-warn {
-  background: var(--accent-amber-glow);
-  border: 1px solid rgba(146, 82, 10, 0.3);
-  color: var(--accent-amber-strong);
+  background: var(--accent-secondary-glow);
+  border: 1px solid rgba(40, 120, 106, 0.3);
+  color: var(--accent-secondary-deep);
 }
 
 [data-code-venue-page] .cv-attention-text {
@@ -104,8 +104,8 @@
 }
 
 [data-code-venue-page] .cv-acc-metrics .danger {
-  /* "⚠ N flagged" in room headers: attention (amber), not destructive red. */
-  color: var(--accent-amber-strong);
+  /* "⚠ N flagged" in room headers: attention (teal), not destructive red. */
+  color: var(--accent-secondary-deep);
 }
 
 /* Past-exam list: visually secondary to Active. */
@@ -190,8 +190,8 @@
 }
 
 [data-code-venue-page] .cv-mon-row.flagged {
-  background: var(--accent-amber-glow);
-  border-color: rgba(146, 82, 10, 0.28);
+  background: var(--accent-secondary-glow);
+  border-color: rgba(40, 120, 106, 0.28);
 }
 
 [data-code-venue-page] .cv-mon-row-head {
@@ -232,14 +232,14 @@
 }
 
 [data-code-venue-page] .cv-pill-flag {
-  /* Flagged / Auto-submitted pills: amber attention accent. */
+  /* Flagged / Auto-submitted pills: teal attention accent. */
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--accent-amber-strong);
-  background: var(--accent-amber-glow);
-  border: 1px solid rgba(146, 82, 10, 0.35);
+  color: var(--accent-secondary-deep);
+  background: var(--accent-secondary-glow);
+  border: 1px solid rgba(40, 120, 106, 0.35);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -251,7 +251,7 @@
 }
 
 [data-code-venue-page] .cv-mon-count.danger {
-  color: var(--accent-amber-strong);
+  color: var(--accent-secondary-deep);
 }
 
 [data-code-venue-page] .cv-mon-breakdown {
@@ -335,7 +335,7 @@
   margin: 0 0 10px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--accent-amber-strong);
+  color: var(--accent-secondary-deep);
 }
 
 /* ---------- Plain-language violation events ---------- */
@@ -447,11 +447,11 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Attention state — amber tint + left rail; ⚠ text carries the meaning,
+/* Attention state — teal tint + left rail; ⚠ text carries the meaning,
    color only reinforces it (never color-only). */
 [data-code-venue-page] .cv-exam-card-attention {
-  border-color: rgba(217, 130, 43, 0.5);
-  box-shadow: inset 3px 0 0 var(--accent-flag-deep);
+  border-color: rgba(40, 120, 106, 0.45);
+  box-shadow: inset 3px 0 0 var(--accent-secondary-deep);
 }
 
 [data-code-venue-page] .cv-exam-card-title {
@@ -501,7 +501,7 @@
 }
 
 [data-code-venue-page] .cv-exam-metric-warn {
-  color: var(--accent-flag-deep);
+  color: var(--accent-secondary-deep);
   font-weight: 600;
 }
 
@@ -561,10 +561,10 @@
 /* ---- Stat card attention variant ---------------------------------------- */
 
 [data-code-venue-page] .cv-stat-card-attention {
-  border-color: rgba(224, 122, 17, 0.45);
+  border-color: rgba(40, 120, 106, 0.45);
   background: linear-gradient(
     to bottom,
-    var(--accent-amber-glow),
+    var(--accent-secondary-glow),
     var(--surface-color) 70%
   );
 }
@@ -601,7 +601,7 @@
   margin-left: 7px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--accent-amber-strong);
+  color: var(--accent-secondary-deep);
 }
 
 [data-code-venue-page] .cv-detail-panel {
@@ -622,7 +622,7 @@
 }
 
 /* Danger zone — destructive actions clearly separated, red reserved for
-   destructive only (attention uses amber). */
+   destructive only (attention uses the teal secondary accent). */
 [data-code-venue-page] .cv-danger-zone {
   margin-top: 24px;
   padding: 16px 18px;
@@ -752,7 +752,7 @@
 
 [data-code-venue-page] .cv-logo:focus-visible,
 [data-code-venue-page] .cv-menu-toggle:focus-visible {
-  outline: 2px solid var(--accent-amber);
+  outline: 2px solid var(--accent-caramel);
   outline-offset: 3px;
 }
 

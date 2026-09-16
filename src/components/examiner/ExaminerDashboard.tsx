@@ -37,7 +37,7 @@ const StatCard = memo(function StatCard({
         {live && (
           <span
             className="cv-live-dot"
-            style={{ color: "var(--accent-amber-deep)" }}
+            style={{ color: "var(--accent-secondary)" }}
           />
         )}
       </div>
