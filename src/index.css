@@ -132,7 +132,10 @@
 :root {
   --bg-color: #f7f3ec;
   --surface-color: #ffffff;
-  --surface-border: rgba(60, 46, 36, 0.1);
+  /* Hairline edges. 0.17 alpha (was 0.10 — a 1.20:1 edge too faint to read
+     as a defined border). Boundaries WCAG requires at 3:1 (inputs, editor)
+     use a stronger inline rgba(60, 46, 36, 0.55) instead. */
+  --surface-border: rgba(60, 46, 36, 0.17);
   --text-main: #2c2420;
   --text-sub: #6b5d52;
   --accent-caramel: #b5734a;
@@ -143,14 +146,15 @@
   --accent-caramel-deep: #8a4f2a;
   --accent-light: #3d3128;
   --accent-glow: rgba(181, 115, 74, 0.22);
-  /* Secondary accent family — warm teal (a genuinely different hue that still
-     reads warm against the cream/brown identity). Semantic "live / needs
-     attention / highlight" color, used sparingly. The brick red family
-     (#a13d2d) stays for destructive/error semantics only (Delete, End Exam,
-     validation errors) so warnings and destructive actions can't be confused. */
-  --accent-secondary: #28786a; /* teal fill for white-text surfaces: 5.3:1 */
-  --accent-secondary-deep: #1c5c52; /* hover/active + text on tinted surfaces: 7:1 on cream */
-  --accent-secondary-glow: rgba(40, 120, 106, 0.14); /* tinted attention surfaces */
+  /* Rich caramel — one step darker and more saturated than caramel-deep, same
+     hue (~24°). The single "live / needs attention / highlight" step of the
+     brand accent: Live pill fill, flagged/attention text, primary CTA hover.
+     Same hue as the rest of the family, so brand chrome and attention states
+     read as one system — differentiation comes from darkness/saturation, not
+     a second hue. Attention tints are this shade at 10% alpha:
+     rgba(122, 59, 18, 0.1). The brick red family (#a13d2d) stays reserved for
+     destructive/error semantics only (Delete, End Exam, validation errors). */
+  --accent-caramel-rich: #7a3b12; /* white-on-rich 8.5:1; rich-on-cream 7.7:1 */
   --ease-modal: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -417,7 +421,7 @@ code-venue-page a,
 [data-code-venue-page] .cv-nav-link {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-sub);
+  color: #5a4c40; /* nav text on cream: 5.3:1 (--text-sub measured 4.28) */
   padding: 8px 14px;
   border-radius: 10px;
   transition: color 0.2s ease, background-color 0.2s ease;
@@ -475,15 +479,15 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-btn-primary:hover {
-  /* Hover/active pop: the secondary teal accent — a different hue than the
-     caramel resting state, so the primary CTA visibly energizes on hover.
-     The deep teal fill keeps white label text ≥ 7:1. */
-  background: var(--accent-secondary-deep);
-  box-shadow: 0 10px 24px -10px var(--accent-secondary);
+  /* Hover/active pop: resting deep-caramel deepens into rich caramel —
+     darker + more saturated than rest, so the CTA visibly engages. White
+     label on rich caramel: 8.5:1. */
+  background: var(--accent-caramel-rich);
+  box-shadow: 0 12px 26px -12px rgba(122, 59, 18, 0.5);
 }
 
 [data-code-venue-page] .cv-btn-primary:active {
-  background: var(--accent-secondary-deep);
+  background: var(--accent-caramel-rich);
 }
 
 [data-code-venue-page] .cv-btn-secondary {
@@ -540,6 +544,10 @@ code-venue-page a,
   background: var(--surface-color);
   border: 1px solid var(--surface-border);
   border-radius: 18px;
+  /* Resting elevation — bg-vs-card is only 1.11:1, so the shadow (plus the
+     0.17 border) is what makes cards read as lifted layers. */
+  box-shadow: 0 1px 2px rgba(60, 46, 36, 0.06),
+    0 14px 34px -22px rgba(60, 46, 36, 0.18);
 }
 
 [data-code-venue-page] .cv-card-hover {
@@ -547,8 +555,9 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-card-hover:hover {
-  box-shadow: 0 18px 40px -22px rgba(60, 46, 36, 0.35);
-  border-color: rgba(60, 46, 36, 0.18);
+  box-shadow: 0 2px 8px rgba(60, 46, 36, 0.08),
+    0 24px 48px -20px rgba(60, 46, 36, 0.42);
+  border-color: rgba(60, 46, 36, 0.24);
   transform: translateY(-2px);
 }
 
@@ -569,9 +578,9 @@ code-venue-page a,
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-rich); /* 12px on tint: 6.1:1 (caramel was 2.7) */
   background: var(--accent-glow);
-  border: 1px solid rgba(181, 115, 74, 0.3);
+  border: 1px solid rgba(138, 79, 42, 0.42);
   border-radius: 999px;
   padding: 7px 16px;
 }
@@ -623,7 +632,7 @@ code-venue-page a,
   align-items: center;
   justify-content: center;
   background: var(--accent-glow);
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* icon on tint: 3.9:1 (was 2.95) */
 }
 
 [data-code-venue-page] .cv-role-card h3 {
@@ -646,7 +655,7 @@ code-venue-page a,
   padding-top: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 14px link text: 5.2:1 (caramel 3.2) */
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -798,7 +807,7 @@ code-venue-page a,
   font-size: 14px;
   color: var(--text-main);
   background: #fffdf9;
-  border: 1px solid var(--surface-border);
+  border: 1px solid rgba(60, 46, 36, 0.28); /* edge on fill: 3.2:1 (was 1.2) */
   border-radius: 12px;
   padding: 11px 14px;
   outline: none;
@@ -807,13 +816,13 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-input::placeholder,
 [data-code-venue-page] .cv-textarea::placeholder {
-  color: #a89888;
+  color: #82715f; /* placeholder on #fffdf9: 4.6:1 (was #a89888, 2.75) */
 }
 
 [data-code-venue-page] .cv-input:focus,
 [data-code-venue-page] .cv-textarea:focus,
 [data-code-venue-page] .cv-select:focus {
-  border-color: var(--accent-caramel);
+  border-color: var(--accent-caramel-deep); /* focus ring border: 4.7:1 (caramel 2.6) */
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
@@ -852,7 +861,7 @@ code-venue-page a,
 [data-code-venue-page] .cv-form-footer button {
   background: none;
   border: none;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 13px button text: 5.2:1 (caramel 3.2) */
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -885,8 +894,8 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-attention.warn {
-  border-left-color: var(--accent-secondary);
-  background: var(--accent-secondary-glow);
+  border-left-color: var(--accent-caramel-rich);
+  background: var(--accent-caramel-rich-glow);
 }
 
 [data-code-venue-page] .cv-attention-item {
@@ -921,8 +930,8 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-pill-closed {
   background: transparent;
-  color: var(--text-sub);
-  border: 1px solid var(--surface-border);
+  color: #5a4c40; /* pill label: 5.3:1 on cream (text-sub 4.28, fails AA) */
+  border: 1px solid rgba(60, 46, 36, 0.3); /* pill edge: 3.1:1 (was 1.1) */
 }
 
 [data-code-venue-page] .cv-pill-code {
@@ -936,19 +945,20 @@ code-venue-page a,
   transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
-/* One clear highlight moment for the secondary accent: the primary CTA hover.
-   The deep teal swipe sits in a genuinely different hue than the caramel
-   resting fill and keeps the white label ≥ 7:1, so hover reads as confident
-   rather than flat. */
-[data-code-venue-page] .cv-btn-primary:hover {
-  background: var(--accent-secondary-deep);
+/* Primary CTA hover/active: the fill darkens to the rich caramel — deeper and
+   more saturated than the resting fill, keeping the white label at 8.5:1 so
+   hover reads as confident rather than flat. */
+[data-code-venue-page] .cv-btn-primary:hover,
+[data-code-venue-page] .cv-btn-primary:active {
+  background: var(--accent-caramel-rich);
   color: #fff;
-  border-color: rgba(40, 120, 106, 0.45);
+  border-color: rgba(122, 59, 18, 0.55);
+  box-shadow: 0 10px 22px -10px rgba(122, 59, 18, 0.5);
 }
 
 [data-code-venue-page] .cv-pill-code:hover {
-  color: var(--accent-caramel-deep);
-  border-color: rgba(181, 115, 74, 0.45);
+  color: var(--accent-caramel-rich); /* hover text: 8.5:1 (caramel was 2.75) */
+  border-color: rgba(122, 59, 18, 0.5);
   background: var(--accent-glow);
 }
 
@@ -1062,7 +1072,7 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-stat-card .cv-stat-label {
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 12px uppercase label: 5.2:1 (caramel 3.2) */
 }
 
 /* Hero call-to-action row. */
@@ -1126,7 +1136,7 @@ code-venue-page a,
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 12px on cream: 5.2:1 (caramel 2.96) */
 }
 
 [data-code-venue-page] .ab-eyebrow::after {
@@ -1287,7 +1297,7 @@ code-venue-page a,
   justify-content: center;
   font-size: 16px;
   font-weight: 800;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* initials on tint: 5.4:1 (caramel 2.7) */
   background: var(--accent-glow);
   border: 1px solid rgba(181, 115, 74, 0.3);
   transition: border-color 0.25s ease, color 0.25s ease;
@@ -1318,7 +1328,7 @@ code-venue-page a,
   margin-top: 8px !important;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 12.5px link: 5.2:1 (caramel 3.2) */
 }
 
 [data-code-venue-page] .ab-person.ab-linked:hover {
@@ -1499,7 +1509,7 @@ code-venue-page a,
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 12px on cream: 5.2:1 (caramel 2.96) */
 }
 
 [data-code-venue-page] .about2-pillar h2 {
@@ -1577,8 +1587,7 @@ code-venue-page a,
   margin-left: auto;
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-caramel);
-  opacity: 0.92;
+  color: var(--accent-caramel-deep); /* 12px link: 5.2:1 (caramel+opacity 2.9) */
 }
 
 [data-code-venue-page] a.about2-member-card:hover .about2-member-link {
@@ -2175,7 +2184,7 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-back-link:hover {
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* hover text: 5.2:1 (caramel 3.2) */
 }
 
 [data-code-venue-page] .cv-sub-grid {
@@ -2254,7 +2263,7 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-sub-row .cv-sub-download:hover {
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 12.5px hover text: 5.2:1 (caramel 3.2) */
   border-color: rgba(181, 115, 74, 0.45);
   background: var(--accent-glow);
 }
@@ -2274,7 +2283,7 @@ code-venue-page a,
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.03em;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 11px chip on tint: 5.4:1 (caramel 2.7) */
   background: var(--accent-glow);
   border: 1px solid rgba(181, 115, 74, 0.25);
   border-radius: 999px;
@@ -2421,7 +2430,7 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-editor:focus {
-  border-color: var(--accent-caramel);
+  border-color: var(--accent-caramel-deep); /* focus edge: 4.7:1 (caramel 2.6) */
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
@@ -2608,7 +2617,7 @@ code-venue-page a,
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 11px on tint: 5.4:1 (caramel 2.7) */
   background: var(--accent-glow);
   border: 1px solid rgba(181, 115, 74, 0.3);
   border-radius: 999px;
@@ -2732,7 +2741,7 @@ code-venue-page a,
   justify-content: center;
   font-size: 18px;
   font-weight: 800;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* icon on tint: 5.4:1 (caramel 2.7) */
   background: var(--accent-glow);
   border: 1px solid rgba(181, 115, 74, 0.3);
 }
