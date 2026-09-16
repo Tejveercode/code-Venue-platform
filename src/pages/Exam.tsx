@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { CodeEditor } from "@/components/venue/CodeEditor";
 import {
   ClosedPill,
   CodeVenuePage,
@@ -585,13 +586,13 @@ export default function Exam() {
                 )}
               </div>
             </div>
-            <textarea
-              className="cv-editor"
+            <CodeEditor
               value={codeValue}
               readOnly={locked}
-              onChange={(e) => {
-                setCodeValue(e.target.value);
-                codeRef.current = e.target.value;
+              languageHint={`${roomState.name} ${roomState.prompt}`}
+              onChange={(next) => {
+                setCodeValue(next);
+                codeRef.current = next;
                 setDirty(true);
               }}
               onBlur={() => {
@@ -606,9 +607,8 @@ export default function Exam() {
               onCopy={() => {
                 reportEvent("copy");
               }}
-              spellCheck={false}
               placeholder="// Write your solution here — your code autosaves as you type"
-              aria-label="Code editor"
+              ariaLabel="Code editor"
             />
           </div>
         </main>

@@ -2171,8 +2171,9 @@ code-venue-page a,
     font-size: 12px;
     padding: 14px;
   }
+  /* Font size is owned by the editor's own +/- control (which defaults a
+     little smaller on narrow screens), so only the height floor is set here. */
   [data-code-venue-page] .cv-editor {
-    font-size: 13px;
     min-height: 240px;
   }
 }
@@ -2436,14 +2437,9 @@ code-venue-page a,
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-[data-code-venue-page] .cv-editor:focus {
+[data-code-venue-page] .cv-editor:focus-within {
   border-color: var(--accent-caramel-deep); /* focus edge: 4.7:1 (caramel 2.6) */
   box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-[data-code-venue-page] .cv-editor:read-only {
-  background: rgba(60, 46, 36, 0.04);
-  color: var(--text-sub);
 }
 
 [data-code-venue-page] .cv-editor-fullscreen {
@@ -2460,6 +2456,156 @@ code-venue-page a,
 [data-code-venue-page] .cv-editor-fullscreen .cv-editor {
   flex: 1;
   min-height: 0;
+}
+
+/* ---------- Code editor (CodeMirror host + toolbar) ---------- */
+
+/* The toolbar and the editor surface travel together and take the slot the
+   bare <textarea> used to fill, so the exam layout is untouched. */
+[data-code-venue-page] .cv-code-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-code-venue-page] .cv-editor-fullscreen .cv-code-frame {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-code-venue-page] .cv-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 26px;
+  padding: 0 2px;
+}
+
+[data-code-venue-page] .cv-editor-lang {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-caramel-deep); /* label: 5.1:1 on cream (caramel 2.8) */
+  background: var(--accent-glow);
+  border: 1px solid rgba(181, 115, 74, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+[data-code-venue-page] .cv-editor-counts {
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub); /* 5.3:1 on cream */
+}
+
+[data-code-venue-page] .cv-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+[data-code-venue-page] .cv-editor-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-color);
+  color: var(--text-sub); /* 5.3:1 on white (icon floor is 3:1) */
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+[data-code-venue-page] .cv-editor-tool:hover:not(:disabled) {
+  color: var(--accent-caramel-deep);
+  border-color: var(--accent-caramel);
+  background: var(--accent-glow);
+}
+
+[data-code-venue-page] .cv-editor-tool:focus-visible {
+  outline: 2px solid var(--accent-caramel-deep);
+  outline-offset: 2px;
+}
+
+[data-code-venue-page] .cv-editor-tool:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-code-venue-page] .cv-editor-size {
+  min-width: 36px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-editor-theme-toggle[aria-pressed="true"] {
+  color: #fff;
+  background: var(--accent-caramel-deep);
+  border-color: var(--accent-caramel-deep);
+}
+
+/* CodeMirror paints its own background, gutters and carets; the host only
+   supplies the frame (border, radius, focus ring) it already had. */
+[data-code-venue-page] .cv-code-editor {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  cursor: text;
+}
+
+/* The editor fills whatever height the layout gives the host and scrolls
+   inside it. The wrapper is absolutely inset (rather than the editor being a
+   stretched flex item) so the code's own height never contributes to the
+   host's: a long paste scrolls instead of stretching the exam page, and the
+   wrapper's definite height lets the editor resolve height: 100% honestly. */
+[data-code-venue-page] .cv-code-editor-inner {
+  position: absolute;
+  inset: 0;
+}
+
+[data-code-venue-page] .cv-code-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+[data-code-venue-page] .cv-code-editor-locked {
+  background: rgba(60, 46, 36, 0.04);
+  cursor: default;
+}
+
+[data-code-venue-page] .cv-code-editor .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-code-venue-page] .cv-code-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(60, 46, 36, 0.22);
+  border-radius: 999px;
+}
+
+/* On phone widths the line/char readout would wrap the toolbar onto a second
+   row; the language badge and the two controls are what matter there. */
+@media (max-width: 480px) {
+  [data-code-venue-page] .cv-editor-counts {
+    display: none;
+  }
+  [data-code-venue-page] .cv-editor-lang {
+    font-size: 10.5px;
+    padding: 2px 8px;
+  }
 }
 
 [data-code-venue-page] .cv-banner {
