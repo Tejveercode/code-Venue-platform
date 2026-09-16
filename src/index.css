@@ -137,7 +137,10 @@
      use a stronger inline rgba(60, 46, 36, 0.55) instead. */
   --surface-border: rgba(60, 46, 36, 0.17);
   --text-main: #2c2420;
-  --text-sub: #6b5d52;
+  /* Secondary text, darkened one step (#6b5d52 measured 4.28:1 on cream —
+     below the 4.5:1 floor for 13-14px UI text). #5a4c40 = 5.3:1 on cream,
+     5.7:1 on white. */
+  --text-sub: #5a4c40;
   --accent-caramel: #b5734a;
   /* Deep caramel — the same hue family darkened to a text/fill-safe step.
      White-on-deep = 6.5:1 (primary button fill); deep-on-glow = 5.1:1
@@ -155,6 +158,9 @@
      rgba(122, 59, 18, 0.1). The brick red family (#a13d2d) stays reserved for
      destructive/error semantics only (Delete, End Exam, validation errors). */
   --accent-caramel-rich: #7a3b12; /* white-on-rich 8.5:1; rich-on-cream 7.7:1 */
+  /* Attention tint: rich caramel at 10% alpha — the same fill at a whisper,
+     keeping every attention surface inside the single brand hue. */
+  --accent-caramel-rich-glow: rgba(122, 59, 18, 0.1);
   --ease-modal: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -515,7 +521,7 @@ code-venue-page a,
 /* Keyboard focus ring across the button family — the brand caramel, so
    focus is visible on every surface. */
 [data-code-venue-page] .cv-btn:focus-visible {
-  outline: 2px solid var(--accent-caramel);
+  outline: 2px solid var(--accent-caramel-deep);
   outline-offset: 2px;
 }
 
@@ -922,9 +928,10 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-pill-live {
   /* The Live pill is the strongest "this is happening now" signal in the
-     product — the teal accent separates it from the caramel brand chrome.
-     White label + dot on the teal fill stay ≥ 5:1. */
-  background: var(--accent-secondary);
+     product — the rich caramel step (darker + more saturated than the
+     resting brand fill) marks it without breaking the single-hue system.
+     White label on rich: 8.5:1. */
+  background: var(--accent-caramel-rich);
   color: #fff;
 }
 
@@ -1682,7 +1689,7 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-pill-live .cv-live-dot {
-  background: var(--accent-secondary);
+  background: #fff; /* dot on rich fill: 8.5:1 */
 }
 
 [data-code-venue-page] .cv-field-row {
@@ -2478,9 +2485,12 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-banner-warn {
-  background: rgba(161, 61, 45, 0.08);
-  border: 1px solid rgba(161, 61, 45, 0.25);
-  color: #a13d2d;
+  /* Warning banner: attention (rich caramel), NOT the destructive red —
+     red stays reserved for Delete/End Exam/errors. Rich text on the
+     10% tint: ~6.5:1. */
+  background: var(--accent-caramel-rich-glow);
+  border: 1px solid rgba(122, 59, 18, 0.35);
+  color: var(--accent-caramel-rich);
 }
 
 /* ---------- About page (original about.html design) ---------- */

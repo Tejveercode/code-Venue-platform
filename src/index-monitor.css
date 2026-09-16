@@ -6,7 +6,7 @@
 */
 
 /* Auto-submitted explanation banner (student view): an attention state —
-   what happened and why — so teal, not the destructive red. */
+   what happened and why — rich caramel attention, not the destructive red. */
 [data-code-venue-page] .cv-banner-danger {
   background: var(--accent-caramel-rich-glow);
   border: 1px solid rgba(122, 59, 18, 0.4);
@@ -41,10 +41,10 @@
 }
 
 /*
-  Attention color semantics (secondary teal accent family).
+  Attention color semantics (rich caramel attention step).
 
-  The teal tokens live in index.css :root (--accent-secondary #28786a,
-  --accent-secondary-deep #1c5c52, --accent-secondary-glow). The brick red
+  The attention tokens live in index.css :root (--accent-caramel-rich #7a3b12,
+  --accent-caramel-rich-glow). The brick red
   (#a13d2d) is reserved for destructive/error semantics only — Delete,
   End Exam, validation errors — so a warning can never be mistaken for a
   destructive action and vice versa. These overrides live in this additive
@@ -69,7 +69,7 @@
   background: var(--accent-caramel-rich-glow);
 }
 
-/* Warning banner: teal (attention), not red. */
+/* Warning banner: rich caramel (attention), not red. */
 [data-code-venue-page] .cv-banner-warn {
   background: var(--accent-caramel-rich-glow);
   border: 1px solid rgba(122, 59, 18, 0.35);
@@ -104,13 +104,13 @@
 }
 
 [data-code-venue-page] .cv-acc-metrics .danger {
-  /* "⚠ N flagged" in room headers: attention (teal), not destructive red. */
+  /* "⚠ N flagged" in room headers: attention (rich caramel), not destructive red. */
   color: var(--accent-caramel-rich);
 }
 
 /* Past-exam list: visually secondary to Active. */
 [data-code-venue-page] .cv-accordion-muted .cv-acc-item {
-  opacity: 0.78;
+  opacity: 0.88; /* muted text-sub stays ≥4.5:1 blended (0.78 → 4.15:1, failed) */
 }
 
 /* Header glance metrics: keep on one line on wide screens; under the app's
@@ -164,7 +164,7 @@
 [data-code-venue-page] .cv-monitor-limit {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 11.5px pill on tint: 5.1:1 (caramel 2.7) */
   background: var(--accent-glow);
   border-radius: 999px;
   padding: 3px 10px;
@@ -232,7 +232,7 @@
 }
 
 [data-code-venue-page] .cv-pill-flag {
-  /* Flagged / Auto-submitted pills: teal attention accent. */
+  /* Flagged / Auto-submitted pills: rich caramel attention accent. */
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -395,7 +395,7 @@
   justify-content: center;
   border-radius: 999px;
   background: var(--accent-glow);
-  color: var(--accent-caramel);
+  color: var(--accent-caramel-deep); /* 11px on tint: 5.4:1 (caramel 2.7) */
   font-size: 11px;
   font-weight: 700;
 }
@@ -405,19 +405,19 @@
    surface and the room accordion (buttons otherwise rely on color alone). */
 
 [data-code-venue-page] .cv-acc-trigger:focus-visible {
-  outline: 2px solid var(--accent-caramel);
+  outline: 2px solid var(--accent-caramel-deep);
   outline-offset: -2px; /* inside the rounded card, not clipped by overflow */
   border-radius: 14px;
 }
 
 [data-code-venue-page] .cv-mon-row-head:focus-visible,
 [data-code-venue-page] .cv-mon-row-head:focus-within {
-  outline: 2px solid var(--accent-caramel);
+  outline: 2px solid var(--accent-caramel-deep);
   outline-offset: 2px;
 }
 
 [data-code-venue-page] .cv-monitor-toggle:focus-visible {
-  outline: 2px solid var(--accent-caramel);
+  outline: 2px solid var(--accent-caramel-deep);
   outline-offset: 2px;
 }
 
@@ -445,13 +445,18 @@
   align-items: flex-start;
   justify-content: space-between;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  /* Resting elevation — the bg-vs-card gap is ~1.1:1, so the shadow is what
+     makes the summary card read as a lifted layer. */
+  box-shadow: 0 1px 2px rgba(60, 46, 36, 0.06),
+    0 14px 34px -22px rgba(60, 46, 36, 0.18);
 }
 
-/* Attention state — teal tint + left rail; ⚠ text carries the meaning,
+/* Attention state — rich tint + left rail; ⚠ text carries the meaning,
    color only reinforces it (never color-only). */
 [data-code-venue-page] .cv-exam-card-attention {
   border-color: rgba(122, 59, 18, 0.5);
-  box-shadow: inset 3px 0 0 var(--accent-caramel-rich);
+  box-shadow: inset 3px 0 0 var(--accent-caramel-rich),
+    0 1px 2px rgba(60, 46, 36, 0.06), 0 14px 34px -22px rgba(60, 46, 36, 0.18);
 }
 
 [data-code-venue-page] .cv-exam-card-title {
@@ -505,10 +510,10 @@
   font-weight: 600;
 }
 
-/* Healthy state stays visually quiet — no green theater, just muted text. */
+/* Healthy state stays visually quiet — just muted text, no attention tint. */
 [data-code-venue-page] .cv-exam-metric-quiet {
   color: var(--text-sub);
-  opacity: 0.75;
+  opacity: 0.88; /* quiet metric stays ≥4.5:1 (0.75 → 4.0:1) */
 }
 
 [data-code-venue-page] .cv-exam-card-actions {
@@ -555,7 +560,7 @@
 
 /* Past exams recede — same card, reduced presence. */
 [data-code-venue-page] .cv-exam-list-muted .cv-exam-card {
-  opacity: 0.72;
+  opacity: 0.88; /* recede without dropping 13px labels under AA (0.72 → 3.84:1) */
 }
 
 /* ---- Stat card attention variant ---------------------------------------- */
@@ -622,7 +627,7 @@
 }
 
 /* Danger zone — destructive actions clearly separated, red reserved for
-   destructive only (attention uses the teal secondary accent). */
+   destructive only (attention uses the rich caramel step). */
 [data-code-venue-page] .cv-danger-zone {
   margin-top: 24px;
   padding: 16px 18px;
@@ -752,7 +757,7 @@
 
 [data-code-venue-page] .cv-logo:focus-visible,
 [data-code-venue-page] .cv-menu-toggle:focus-visible {
-  outline: 2px solid var(--accent-caramel);
+  outline: 2px solid var(--accent-caramel-deep);
   outline-offset: 3px;
 }
 
@@ -801,7 +806,7 @@
   margin-top: 12px;
   font-size: 12.5px;
   color: var(--text-sub);
-  opacity: 0.85;
+  opacity: 0.9; /* 12.5px text-sub ≥4.5:1 blended (0.85 → 4.50:1 borderline) */
 }
 /* Attention zero state: calm line, no warn rail, no amber tint. */
 [data-code-venue-page] .cv-attention-quiet .cv-attention-item.quiet {
