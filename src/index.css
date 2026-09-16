@@ -143,16 +143,23 @@
   --accent-caramel-deep: #8a4f2a;
   --accent-light: #3d3128;
   --accent-glow: rgba(181, 115, 74, 0.22);
-  /* Secondary accent — golden amber (brighter + more saturated than caramel,
-     same warm family). Semantic "needs attention / live / highlight" color,
-     used sparingly: primary-CTA hover, the Live pill, flagged indicators,
-     attention banners, low-time state. The brick red family (#a13d2d) is
-     now reserved for destructive/error semantics only (Delete, End Exam,
+  /* Secondary accent family — warm amber (brighter, more saturated than caramel).
+     Semantic "live / needs attention / highlight" color, used sparingly. The brick
+     red family (#a13d2d) stays for destructive/error semantics only (Delete, End Exam,
      validation errors) so warnings and destructive actions can't be confused. */
   --accent-amber: #e07a11;
   --accent-amber-strong: #92520a; /* amber darkened for text: 6.5:1 on cream */
   --accent-amber-glow: rgba(224, 122, 17, 0.16);
   --accent-amber-deep: #9a4c07; /* amber fill for white-text surfaces: 5.2:1 */
+  --accent-amber-soft: rgba(224, 122, 17, 0.10); /* subtle warm-amber tint for
+     attention banners / flagged rows on cream surfaces: present without shouting. */
+  /* Flag / violation accent — a warmer, softer orange-gold used for the one
+     attention/warning semantic that should be distinct from the caramel brand
+     chrome AND from the pure-LIVE amber. Sits between the two in tone and is
+     the color the flagged-student / violation glyphs and the code-pill hover
+     state pull from. Deep variant keeps white-on-it ≥ 5:1. */
+  --accent-flag: #d9822b;
+  --accent-flag-deep: #8c3f06; /* deep flag accent for white-text warning surfaces: ≥5:1 */
   --ease-modal: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -880,6 +887,41 @@ code-venue-page a,
   line-height: 1.4;
 }
 
+[data-code-venue-page] .cv-attention {
+  border-left: 3px solid var(--accent-caramel);
+  background: var(--accent-glow);
+  padding: 14px 18px;
+  border-radius: 12px;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-attention.warn {
+  border-left-color: var(--accent-flag-deep);
+  background: rgba(217, 130, 43, 0.13);
+}
+
+[data-code-venue-page] .cv-attention-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+[data-code-venue-page] .cv-attention-item .cv-attention-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-main);
+}
+
+[data-code-venue-page] .cv-attention-quiet {
+  border-left-color: var(--surface-border);
+  background: rgba(60, 46, 36, 0.05);
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .cv-attention-item.quiet {
+  color: var(--text-sub);
+}
+
 [data-code-venue-page] .cv-pill-live {
   /* The Live pill is the strongest "this is happening now" signal in the
      product — the amber accent separates it from the caramel brand chrome.
@@ -902,6 +944,22 @@ code-venue-page a,
   border: 1px solid rgba(181, 115, 74, 0.28);
   font-family: "Poppins", monospace;
   letter-spacing: 0.04em;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+/* One clear highlight moment for the secondary accent: the primary CTA hover.
+   The deep amber swipe stays inside the same warm amber family and stays
+   ≥ 5:1 against the white label, so hover reads as confident rather than flat. */
+[data-code-venue-page] .cv-btn-primary:hover {
+  background: var(--accent-amber-deep);
+  color: #fff;
+  border-color: rgba(224, 122, 17, 0.45);
+}
+
+[data-code-venue-page] .cv-pill-code:hover {
+  color: var(--accent-flag-deep);
+  border-color: rgba(217, 130, 43, 0.5);
+  background: rgba(217, 130, 43, 0.12);
 }
 
 [data-code-venue-page] .cv-live-dot {
@@ -1239,7 +1297,7 @@ code-venue-page a,
   justify-content: center;
   font-size: 16px;
   font-weight: 800;
-  color: var(--accent-caramel);
+  color: var(--accent-amber);
   background: var(--accent-glow);
   border: 1px solid rgba(181, 115, 74, 0.3);
   transition: border-color 0.25s ease, color 0.25s ease;
@@ -1505,9 +1563,9 @@ code-venue-page a,
 }
 
 [data-code-venue-page] a.about2-member-card:hover .team-avatar {
-  border-color: var(--accent-caramel);
-  color: var(--accent-caramel);
-}
+    border-color: var(--accent-amber);
+    color: var(--accent-amber);
+  }
 
 [data-code-venue-page] .about2-member h3 {
   margin: 0;
@@ -1529,8 +1587,8 @@ code-venue-page a,
   margin-left: auto;
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-caramel);
-  opacity: 0.85;
+  color: var(--accent-flag);
+  opacity: 0.92;
 }
 
 [data-code-venue-page] a.about2-member-card:hover .about2-member-link {
@@ -1622,6 +1680,13 @@ code-venue-page a,
   /* 14px icon inset + 15px glyph + 9px gap before the placeholder. */
   padding-left: 38px;
   max-width: none;
+}
+
+[data-code-venue-page] .cv-pill-live .cv-live-dot {
+  /* The Live pill is the strongest "this is happening now" signal in the
+     product — the amber accent separates it from the caramel brand chrome.
+     Deep fill so the white label + dot stay ≥ 5:1 (bright amber is ~3:1). */
+  background: var(--accent-amber-deep);
 }
 
 [data-code-venue-page] .cv-field-row {
@@ -1764,7 +1829,7 @@ code-venue-page a,
 [data-code-venue-page] .cv-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--accent-caramel);
+  background: var(--accent-amber);
   transition: width 0.5s var(--ease-modal);
 }
 
@@ -1781,7 +1846,7 @@ code-venue-page a,
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-caramel);
+  color: var(--accent-caramel); /* kept — this is brand chrome on the prompt box, not an attention indicator */
   margin-bottom: 8px;
 }
 

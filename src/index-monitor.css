@@ -450,8 +450,8 @@
 /* Attention state — amber tint + left rail; ⚠ text carries the meaning,
    color only reinforces it (never color-only). */
 [data-code-venue-page] .cv-exam-card-attention {
-  border-color: rgba(224, 122, 17, 0.45);
-  box-shadow: inset 3px 0 0 var(--accent-amber-deep);
+  border-color: rgba(217, 130, 43, 0.5);
+  box-shadow: inset 3px 0 0 var(--accent-flag-deep);
 }
 
 [data-code-venue-page] .cv-exam-card-title {
@@ -501,7 +501,7 @@
 }
 
 [data-code-venue-page] .cv-exam-metric-warn {
-  color: var(--accent-amber-strong);
+  color: var(--accent-flag-deep);
   font-weight: 600;
 }
 
