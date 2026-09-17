@@ -1104,33 +1104,56 @@ code-venue-page a,
   gap: 56px;
 }
 
-/* Reveal — transform/opacity only, respects reduced motion. */
-[data-code-venue-page] .ab-reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.6s var(--ease-modal),
-    transform 0.6s var(--ease-modal);
+/* Framer-motion handles entrance/reveal animation on the About page; the
+   legacy IntersectionObserver reveal wrapper below is unused and was removed.
+
+   Motion-managed elements (motion.* components) own `transform` inline per
+   frame, so CSS transform transitions are scoped away from them — a CSS
+   transition would otherwise fight framer's per-frame values during entrance
+   and whileHover. Shadow/border/color transitions stay, so hover states still
+   feel layered on top of framer's lift. */
+[data-code-venue-page] .cv-motion-card,
+[data-code-venue-page] .cv-motion-btn,
+[data-code-venue-page] .ab-person-li,
+[data-code-venue-page] .ab-cta,
+[data-code-venue-page] .ab-btn-light {
+  transition-property: box-shadow, border-color, background-color, color, opacity;
 }
 
-[data-code-venue-page] .ab-reveal.is-visible {
-  opacity: 1;
-  transform: none;
+/* Team cards get the same hover treatment as the Landing cards (consistency
+   across pages). The framer lift (y) lives on the <li>; this rule adds the
+   surface change. Reduced-motion users get shadow/border only — no lift. */
+[data-code-venue-page] .ab-person-li .ab-person {
+  height: 100%;
 }
 
-[data-code-venue-page] .ab-d1 {
-  transition-delay: 0.07s;
+[data-code-venue-page] .ab-person-li:hover .ab-person {
+  border-color: rgba(181, 115, 74, 0.45);
+  box-shadow: 0 16px 36px -20px rgba(122, 59, 18, 0.35);
 }
 
-[data-code-venue-page] .ab-d2 {
-  transition-delay: 0.14s;
+[data-code-venue-page] .ab-person-li:hover .ab-person-avatar {
+  border-color: var(--accent-caramel);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-code-venue-page] .ab-reveal {
-    opacity: 1;
-    transform: none;
+  /* Framer checks useReducedMotion for its own animations; this catches the
+     CSS-side transitions and hover transforms so nothing eases or lifts for
+     these users (shadow/border feedback still fires, instantly). */
+  [data-code-venue-page] .cv-motion-card,
+  [data-code-venue-page] .cv-motion-btn,
+  [data-code-venue-page] .ab-person-li,
+  [data-code-venue-page] .ab-cta,
+  [data-code-venue-page] .ab-btn-light {
     transition: none;
+  }
+
+  [data-code-venue-page] .cv-card-hover:hover {
+    transform: none;
+  }
+
+  [data-code-venue-page] .cv-btn:active {
+    transform: none;
   }
 }
 
@@ -1338,12 +1361,6 @@ code-venue-page a,
   color: var(--accent-caramel-deep); /* 12.5px link: 5.2:1 (caramel 3.2) */
 }
 
-[data-code-venue-page] .ab-person.ab-linked:hover {
-  transform: translateY(-2px);
-  border-color: rgba(181, 115, 74, 0.45);
-  box-shadow: 0 16px 36px -20px var(--accent-glow);
-}
-
 [data-code-venue-page] .ab-person.ab-linked:hover .ab-person-avatar {
   border-color: var(--accent-caramel);
 }
@@ -1399,7 +1416,6 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .ab-btn-light:hover {
-  transform: translateY(-1px);
   opacity: 0.94;
 }
 

@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { motion } from "framer-motion";
 import { GraduationCap, MonitorPlay, ShieldCheck, Timer, Users, Zap, ArrowRight, FileArchive, TimerReset, Wifi } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
+import { useVenueMotion } from "@/components/venue/motion";
 
 const FEATURES = [
   {
@@ -45,6 +47,7 @@ const PROOF = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { variants, tapProps, hoverProps, mountGroup, inViewGroup } = useVenueMotion();
 
   useEffect(() => {
     document.title = "Code Venue — Live Coding Exams";
@@ -56,44 +59,52 @@ export default function Landing() {
         <VenueHeader />
 
         {/* 02. Clear hero message — one sentence, then the next action. */}
-        <section className="cv-hero">
-          <span className="cv-kicker">Live coding exams</span>
-          <h1>
+        {/* Entrance animates opacity/transform only — headline text itself is
+            never split, typed, or delayed beyond the stagger slot. */}
+        <motion.section className="cv-hero" {...mountGroup}>
+          <motion.span className="cv-kicker" variants={variants}>
+            Live coding exams
+          </motion.span>
+          <motion.h1 variants={variants}>
             Run coding exams that
             <br />
             just <em>work.</em>
-          </h1>
-          <p className="cv-hero-sub">
+          </motion.h1>
+          <motion.p className="cv-hero-sub" variants={variants}>
             Code Venue is the venue for live coding exams — examiners create a
             room and share a code, students join in one click and code against
             the clock. Real autosaves, real timers, real submissions.
-          </p>
-          <div className="cv-hero-cta">
-            <button
-              className="cv-btn cv-btn-primary"
+          </motion.p>
+          <motion.div className="cv-hero-cta" variants={variants}>
+            <motion.button
+              className="cv-btn cv-btn-primary cv-motion-btn"
               onClick={() => navigate("/student-portal")}
+              {...tapProps}
             >
               Join an exam <ArrowRight size={15} />
-            </button>
-            <button
-              className="cv-btn cv-btn-secondary"
+            </motion.button>
+            <motion.button
+              className="cv-btn cv-btn-secondary cv-motion-btn"
               onClick={() => navigate("/examiner-portal")}
+              {...tapProps}
             >
               Run an exam
-            </button>
-          </div>
-        </section>
+            </motion.button>
+          </motion.div>
+        </motion.section>
 
         {/* 03. Logical flow — answer "what do you do?" with two obvious paths. */}
-        <section className="cv-role-grid">
-          <div
-            className="cv-card cv-card-hover cv-role-card"
+        <motion.section className="cv-role-grid" {...mountGroup}>
+          <motion.div
+            className="cv-card cv-card-hover cv-role-card cv-motion-card"
             role="button"
             tabIndex={0}
             onClick={() => navigate("/examiner-portal")}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") navigate("/examiner-portal");
             }}
+            variants={variants}
+            {...hoverProps}
           >
             <div className="cv-role-icon">
               <MonitorPlay size={22} />
@@ -106,16 +117,18 @@ export default function Landing() {
             <span className="cv-role-cta">
               Enter examiner portal <ArrowRight size={15} />
             </span>
-          </div>
+          </motion.div>
 
-          <div
-            className="cv-card cv-card-hover cv-role-card"
+          <motion.div
+            className="cv-card cv-card-hover cv-role-card cv-motion-card"
             role="button"
             tabIndex={0}
             onClick={() => navigate("/student-portal")}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") navigate("/student-portal");
             }}
+            variants={variants}
+            {...hoverProps}
           >
             <div className="cv-role-icon">
               <GraduationCap size={22} />
@@ -128,21 +141,26 @@ export default function Landing() {
             <span className="cv-role-cta">
               Join an exam <ArrowRight size={15} />
             </span>
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
 
         {/* Proof before persuasion — the "why should I trust you?" answer. */}
         <section className="cv-feature-section" aria-label="Why Code Venue">
-          <div className="cv-stat-row">
+          <motion.div className="cv-stat-row" {...inViewGroup}>
             {PROOF.map((p) => (
-              <div key={p.title} className="cv-card cv-stat-card">
+              <motion.div
+                key={p.title}
+                className="cv-card cv-card-hover cv-stat-card cv-motion-card"
+                variants={variants}
+                {...hoverProps}
+              >
                 <span className="cv-stat-label">
                   <p.icon size={14} /> {p.title}
                 </span>
                 <span className="cv-stat-body">{p.body}</span>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </section>
 
         <section className="cv-feature-section">
@@ -150,25 +168,31 @@ export default function Landing() {
           <p className="cv-section-sub">
             Built for the full arc of a live exam — before, during, and after.
           </p>
-          <div className="cv-feature-grid">
+          <motion.div className="cv-feature-grid" {...inViewGroup}>
             {FEATURES.map((f) => (
-              <div key={f.title} className="cv-card cv-card-hover cv-feature-card">
+              <motion.div
+                key={f.title}
+                className="cv-card cv-card-hover cv-feature-card cv-motion-card"
+                variants={variants}
+                {...hoverProps}
+              >
                 <div className="cv-role-icon">
                   <f.icon size={20} />
                 </div>
                 <h4>{f.title}</h4>
                 <p>{f.body}</p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
           {/* "Tell me what to do next." */}
           <div className="cv-hero-cta" style={{ justifyContent: "center", marginTop: 34 }}>
-            <button
-              className="cv-btn cv-btn-primary"
+            <motion.button
+              className="cv-btn cv-btn-primary cv-motion-btn"
               onClick={() => navigate("/examiner-portal")}
+              {...tapProps}
             >
               Start your first exam <ArrowRight size={15} />
-            </button>
+            </motion.button>
           </div>
         </section>
 
