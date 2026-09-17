@@ -1,6 +1,8 @@
 # CodeVenue — PRD Analysis (Working Document)
 
-**Purpose:** evidence base for `docs/PRD.md`. Every claim below was verified by reading repository source during PRD generation (Sept 2026). Status labels: **IMPLEMENTED** / **PARTIALLY IMPLEMENTED** / **REQUIRED (future)** / **UNKNOWN — needs validation**.
+**Purpose:** evidence base for the PRD. Every claim below was verified by reading repository source during PRD generation (Sept 2026). Status labels: **IMPLEMENTED** / **PARTIALLY IMPLEMENTED** / **REQUIRED (future)** / **UNKNOWN — needs validation**.
+
+> **v2.0 note (Sept 17, 2026):** the main PRD was restructured for readability (now `docs/PRD.md` v2.0, 22 sections; v1 archived at `docs/archive/PRD-v1.md`). The engineering-registers below are the relocated home for v1 content that did not belong in the product narrative: Security Requirements (SEC-1…9), Open Questions (OQ-01…09), Risks (R-1…7), and Test Requirements (T-1…9) retain their v1 numbering and full text in the sections appended at the end of this file. The v1→v2 requirement ID cross-reference is in the section "v1 → v2 requirement ID map".
 
 ---
 
@@ -190,3 +192,82 @@ Invalid/duplicate login OTP (provider limiter), wrong/full/closed room code, sta
 ## Change Log (analysis file)
 
 - 2026-09-17 — v1.0 created: full repository analysis for PRD v1.0.
+- 2026-09-17 — v2.0: received relocated registers (SEC, OQ, R, T) from the PRD restructure; added the v1→v2 ID cross-reference; PRD v1 archived under `docs/archive/`.
+
+---
+
+## v1 → v2 requirement ID map
+
+Renumbering kept IDs stable within families wherever possible; v1 FR-012+ shifted to make room for grouped examiner/student sections. v2 introduces **no new scope** — FR-019…022 are renumbered v1 requirements.
+
+| v1 ID | v2 ID | Note |
+|---|---|---|
+| FR-001…FR-011 | FR-001…FR-011 | Unchanged IDs (grouped under Examiner — Authentication/Exams; some v1 FRs reassigned to different headings only) |
+| FR-012 | FR-019 | Integrity event capture (student-side; v1 had it mid-sequence) |
+| FR-013 | FR-008 | Warning countdown / auto-submit (grouped under Examiner — Monitoring) |
+| FR-014 | FR-009 | Zero-tolerance flagging |
+| FR-015 | FR-007 | Live monitoring view |
+| FR-016 | FR-011 | Submission downloads |
+| FR-017 | FR-022 | Anti-enumeration / capability gating (moved to Shared) |
+| FR-006 | FR-006 | Live counts (unchanged) |
+| FR-018 (language, planned) | FR-020 | Same requirement, still Planned |
+| — (v1 §18.2 EXEC-1…5 prose) | FR-021 + EXEC-1…5 | Execution/grading promoted to a numbered Planned requirement; EXEC guardrails unchanged |
+| NFR-001…013 | NFR-01…13 | Zero-padded; same mapping in order |
+| US-01…10 | US-01…12 | v1 stories retained; US-11/12 split out weak-connection and late-submit concerns explicitly (content existed in v1 §15 narratives) |
+| DR-1…6, UX-1…8 | DR-1…6, UX-1…10 | UX-9 (background/veil readability) and UX-10 (no low-contrast controls) made explicit from v1 §13 findings |
+| SEC-1…9 | §16 of PRD (narrative) + register below | Security posture told as narrative; register retains IDs |
+| OQ-01…09, R-1…7, T-1…9 | Relocated here (registers below) | Owner owns resolution; PRD points here |
+
+---
+
+## Register — Security Requirements (v1 SEC numbering, full text)
+
+| ID | Requirement | State |
+|---|---|---|
+| SEC-1 | Examiner-only functions verify session + room ownership on every call ("hiding a button is not access control") | IMPLEMENTED |
+| SEC-2 | Student actions resolve exclusively through their own capability token; unknown/foreign tokens rejected before quota consumption | IMPLEMENTED |
+| SEC-3 | Input validation is server-side and reject-not-sanitize; bounds in one file | IMPLEMENTED |
+| SEC-4 | Rate limits: OTP send (per-email + global), join (per-code + per-session), autosave, submit, room create, violation events; OTP verification attempts limited natively by the auth provider | IMPLEMENTED |
+| SEC-5 | Anti-enumeration: public room-state returns a safe subset; deleted the unlimited code-preview function | IMPLEMENTED |
+| SEC-6 | Clipboard privacy: monitoring stores event type/time only — never pasted/copied content | IMPLEMENTED (schema-level) |
+| SEC-7 | Secrets managed as deployment env vars (email provider keys, site URL); never committed; docs contain none | Constraint — verified |
+| SEC-8 | No student PII beyond name + optional institutional ID; UIDs are random, not derived | IMPLEMENTED |
+| SEC-9 | Future execution features must add isolation before any student-supplied code runs | REQUIRED (EXEC-1) |
+
+## Register — Open Questions (v1 OQ numbering)
+
+| ID | Question | Why it matters | Owner | Status |
+|---|---|---|---|---|
+| OQ-01 | Confirm canonical repository name/URL (`Tejveercode/code-Venue-platform`?) | Document identity, CI wiring | Owner | OPEN |
+| OQ-02 | Confirm actual deploy URL + email provider in production | Runbooks, deliverability | Owner | OPEN |
+| OQ-03 | What exactly happens at time-up on the client (auto-final vs read-only)? | Core exam policy; affects acceptance criteria | Owner + Eng | OPEN — validate against product |
+| OQ-04 | Default violation policy for new rooms (0 vs 3)? | Fairness vs signal balance | Owner | OPEN |
+| OQ-05 | Adopt or remove the unused `admin/user/member` role literals? | Schema hygiene, future RBAC | Eng | OPEN |
+| OQ-06 | Is an external API/export format required (LMS import)? | Integration roadmap | Owner | OPEN |
+| OQ-07 | Retention: auto-delete closed rooms after N days? | Privacy/PII policy | Owner | OPEN |
+| OQ-08 | Approve analytics instrumentation scope (see PRD §18) | Measurement without surveillance creep | Owner | OPEN |
+| OQ-09 | Run the existing Playwright QA harness in CI on every PR? | Regression safety | Eng | OPEN |
+
+## Register — Risks (v1 R numbering)
+
+| ID | Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|---|
+| R-1 | OTP email provider outage blocks examiner sign-in at exam time | M | H | Status monitoring; secondary examiner device; provider failover TBD |
+| R-2 | Student clears localStorage mid-exam → new session row; examiner sees a "new" student | M | M | Clear rejoin UX; regNo matching aids identification; consider token backup (future) |
+| R-3 | Zero-tolerance mode flags innocent students (touchpad app-switches) | M | M | Default limits > 0; policy copy; examiner override is manual judgment |
+| R-4 | Monitoring realism gap: examiner expects prevention | M | M | Explicit in-product language ("detection, not prevention") |
+| R-5 | Convex/vendor coupling raises migration cost | M | M | Keep logic centralized; standard schema; export paths (OQ-06) |
+| R-6 | Large classes (500) × monitoring events stress reads | L | M | Events capped/read-limited; load test before >200-student use |
+| R-7 | Docs drift as product evolves | M | L | PRD-README change process; version bump rule |
+
+## Register — Test Requirements (v1 T numbering)
+
+- **T-1** Unit: validators (`validation.ts`) — every bound and message. → FR-003/006, SEC-3
+- **T-2** Unit: rate-limit policy behavior (burst/refill semantics). → SEC-4
+- **T-3** Integration: join lifecycle — capacity edge, rejoin identity, closed/full paths. → FR-012/014 (v2)
+- **T-4** Integration: autosave + submit state machine (draft→final→locked; late flag). → FR-016/017 (v2)
+- **T-5** Integration: violation pipeline — event→tally→warn→flag→auto-submit atomicity. → FR-008/009/019 (v2)
+- **T-6** Security: ownership matrix (foreign roomIds/tokens rejected). → SEC-1/2
+- **T-7** E2E (Playwright): examiner create→monitor→close→download happy path. → US-01/05/06 (v1)
+- **T-8** E2E (Playwright): student join→type→reload→submit. → US-07/08 (v2)
+- **T-9** Visual/a11y: existing QA harness in CI. → UX-1/2/5, NFR-10/11
