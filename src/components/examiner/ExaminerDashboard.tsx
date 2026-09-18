@@ -90,7 +90,9 @@ export function ExaminerDashboard({
 }) {
   const [search, setSearch] = useState("");
 
-  const list = rooms ?? [];
+  // Stable identity while loading (react-hooks/exhaustive-deps): a fresh []
+  // literal each render would invalidate every downstream useMemo.
+  const list = useMemo(() => rooms ?? [], [rooms]);
 
   const totalStudents = list.reduce(
     (sum, r) => sum + (counts?.[r._id]?.joined ?? 0),

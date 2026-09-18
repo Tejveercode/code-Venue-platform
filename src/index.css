@@ -1955,11 +1955,9 @@ code-venue-page a,
   [data-code-venue-page] .cv-page-wrap {
     padding: 28px 16px 64px;
   }
-  /* 3-column stat card grid → 2×2 on mobile: four single-column cards
-     stacked made the summary needlessly tall; 2×2 keeps every label and
-     value readable while halving the vertical cost. */
+  /* Mobile stat-row rhythm: tighter gap for the 2×2 flex wrap (the wrap
+     itself comes from the flex ladder in index-monitor.css). */
   [data-code-venue-page] .cv-stat-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
   [data-code-venue-page] .cv-stat-card {

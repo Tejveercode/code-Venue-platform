@@ -28,7 +28,9 @@ export default function ExaminerPortal() {
   const navigate = useNavigate();
 
   const examiner = useQuery(api.exams.getMyExaminer);
-  const rooms = useQuery(api.exams.listMyRooms) ?? [];
+  const roomsQuery = useQuery(api.exams.listMyRooms);
+  // Stable identity while loading (react-hooks/exhaustive-deps).
+  const rooms = useMemo(() => roomsQuery ?? [], [roomsQuery]);
   const roomIds = useMemo(() => rooms.map((r) => r._id), [rooms]);
   const counts = useQuery(
     api.exams.getRoomCounts,

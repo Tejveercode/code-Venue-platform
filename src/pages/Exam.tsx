@@ -10,7 +10,7 @@ import {
 } from "@/components/venue/ui";
 import { format } from "date-fns";
 import { Loader2, Maximize2, Minimize2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useParams } from "react-router";
 import type { ViolationType } from "@/lib/violationEvents";
@@ -44,7 +44,11 @@ const Timer = memo(function Timer({
 }) {
   const [now, setNow] = useState(() => Date.now());
   const expireRef = useRef(onExpire);
-  expireRef.current = onExpire;
+  // Synced in an effect, not during render (react-hooks/refs): onExpire may
+  // change identity, but the interval closure must always read the latest.
+  useLayoutEffect(() => {
+    expireRef.current = onExpire;
+  });
 
   const remaining = Math.max(0, endsAt - now);
   const expired = remaining <= 0;
@@ -151,6 +155,10 @@ export default function Exam() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Clock snapshot for the "Saved just now" comparison (react-hooks/purity):
+  // Date.now() can't be read during render, so the label compares against a
+  // snapshot refreshed at each save — exactly when this label can change.
+  const [savedClock, setSavedClock] = useState(() => Date.now());
   const [fullscreen, setFullscreen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   // Snapshot of time remaining, captured when the confirm dialog opens —
@@ -222,6 +230,7 @@ export default function Exam() {
       });
       if (res.locked) return;
       setSavedAt(Date.now());
+      setSavedClock(Date.now());
       setDirty(false);
     } catch {
       // transient failure — the next keystroke reschedules the save
@@ -249,6 +258,7 @@ export default function Exam() {
       setConfirming(false);
       setDirty(false);
       setSavedAt(Date.now());
+      setSavedClock(Date.now());
     } catch (err) {
       autoRef.current = false; // allow the auto-submit effect to retry
       // Rate limits / validation arrive as ConvexError with safe messages;
@@ -313,7 +323,11 @@ export default function Exam() {
   // --- Exam-session monitoring (client REPORTS, server DECIDES) ------------
 
   const reportRef = useRef(logEvent);
-  reportRef.current = logEvent;
+  // Synced in an effect, not during render (react-hooks/refs): the memoized
+  // reportEvent closure reads this to always call the latest logEvent.
+  useLayoutEffect(() => {
+    reportRef.current = logEvent;
+  });
 
   const reportEvent = useCallback(
     (type: ViolationType) => {
@@ -493,7 +507,7 @@ export default function Exam() {
     : saving
       ? "Saving…"
       : savedAt
-        ? Date.now() - savedAt < 15_000
+        ? savedClock - savedAt < 15_000
           ? "Saved just now"
           : `Saved ${format(savedAt, "HH:mm")}`
         : "Not saved yet";
