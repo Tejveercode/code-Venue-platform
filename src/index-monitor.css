@@ -547,8 +547,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-sub);
-  min-width: 34px;
-  text-align: right;
+  white-space: nowrap; /* "% completed" wraps as a unit, never "0%\ncompleted" */
   font-variant-numeric: tabular-nums;
 }
 
@@ -572,6 +571,15 @@
     var(--accent-caramel-rich-glow),
     var(--surface-color) 70%
   );
+}
+
+/* Decorative metric icon inside the stat label — visually secondary to the
+   value it belongs to; meaning is carried by the adjacent visible label. */
+[data-code-venue-page] .cv-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-caramel-deep); /* icon on card surface: 5.2:1 */
+  flex-shrink: 0;
 }
 
 /* ---- Detail page (exam-level surface) ------------------------------------ */
@@ -800,14 +808,8 @@
 }
 
 /* Phase 6 — dashboard product refinement.
-   ROW 3 on exam cards: relative time context, quiet by design. */
-[data-code-venue-page] .cv-exam-time {
-  display: block;
-  margin-top: 12px;
-  font-size: 12.5px;
-  color: var(--text-sub);
-  opacity: 0.9; /* 12.5px text-sub ≥4.5:1 blended (0.85 → 4.50:1 borderline) */
-}
+   Time context now lives in the card's metadata row (.cv-exam-metric);
+   the former ROW 3 .cv-exam-time block was removed with it. */
 /* Attention zero state: calm line, no warn rail, no amber tint. */
 [data-code-venue-page] .cv-attention-quiet .cv-attention-item.quiet {
   border-left: 3px solid transparent;
@@ -831,5 +833,16 @@
 @media (max-width: 1024px) {
   [data-code-venue-page] .cv-kpi-row .cv-stat-card {
     flex: 1 1 42%;
+  }
+}
+
+/* Usability audit #3 — stacked panel head (≤860px): the search WRAPPER must
+   release its desktop 300px max-width alongside the input, or the stacked
+   mobile head shows a left-hugging narrow field. (index-monitor.css loads
+   after index.css, so this wins the cascade.) */
+@media (max-width: 860px) {
+  [data-code-venue-page] .cv-search-wrap {
+    max-width: none;
+    flex-basis: 100%;
   }
 }

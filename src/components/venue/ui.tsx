@@ -22,17 +22,32 @@ export function CodeVenuePage({ children }: { children: ReactNode }) {
 // ---------------------------------------------------------------------------
 
 /** Auth-aware header actions: examiner sign-in CTA when signed out,
- *  portal link when signed in. Students never need an account. */
+ *  portal link when signed in. Students never need an account.
+ *
+ *  On /examiner-portal itself the portal entry renders as the header's
+ *  standard nav link with aria-current="page" — the current location is
+ *  navigation state, not an action button (usability audit #4). */
 function AuthAwareActions() {
   const { isLoading, isAuthenticated } = useAuth();
+  const onPortal = useLocation().pathname.startsWith("/examiner-portal");
   if (isLoading) return <span style={{ width: 76 }} />;
-  return isAuthenticated ? (
+  if (!isAuthenticated) {
+    return (
+      <Link className="cv-btn cv-btn-primary cv-btn-sm" to="/auth?returnTo=%2Fexaminer-portal">
+        Examiner Sign In
+      </Link>
+    );
+  }
+  if (onPortal) {
+    return (
+      <Link className="cv-nav-link active" to="/examiner-portal" aria-current="page">
+        Examiner Portal
+      </Link>
+    );
+  }
+  return (
     <Link className="cv-btn cv-btn-secondary cv-btn-sm" to="/examiner-portal">
       Examiner Portal
-    </Link>
-  ) : (
-    <Link className="cv-btn cv-btn-primary cv-btn-sm" to="/auth?returnTo=%2Fexaminer-portal">
-      Examiner Sign In
     </Link>
   );
 }

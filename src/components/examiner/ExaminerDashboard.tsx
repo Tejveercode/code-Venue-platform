@@ -1,5 +1,13 @@
 import type { Doc } from "@/convex/_generated/dataModel";
-import { Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardList,
+  Plus,
+  Search,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { ExamSummaryCard, type RoomCounts } from "./ExamSummaryCard";
 
@@ -14,17 +22,20 @@ const EMPTY_COUNT: RoomCounts = {
   autoSubmitted: 0,
 };
 
-/** One statistic with a reason to exist — every value comes from live data. */
+/** One statistic with a reason to exist — every value comes from live data.
+ *  `icon` is decorative (aria-hidden): the visible label carries the meaning. */
 const StatCard = memo(function StatCard({
   label,
   value,
   live,
   attention,
+  icon: Icon,
 }: {
   label: string;
   value: React.ReactNode;
   live?: boolean;
   attention?: boolean;
+  icon?: LucideIcon;
 }) {
   return (
     <div
@@ -33,6 +44,11 @@ const StatCard = memo(function StatCard({
       }
     >
       <div className="cv-stat-label">
+        {Icon && (
+          <span className="cv-stat-icon" aria-hidden="true">
+            <Icon size={14} strokeWidth={2.25} />
+          </span>
+        )}
         {label}
         {live && (
           <span
@@ -194,9 +210,10 @@ export function ExaminerDashboard({
           here so the shared .cv-stat-row family keeps Landing's 3-card
           proof row sizing independent. */}
       <div className="cv-stat-row cv-kpi-row">
-        <StatCard label="Active Exams" value={activeCount} live />
-        <StatCard label="Total Students" value={totalStudents} />
+        <StatCard label="Active Exams" value={activeCount} live icon={ClipboardList} />
+        <StatCard label="Total Students" value={totalStudents} icon={Users} />
         <StatCard
+          icon={CheckCircle2}
           label="Completion"
           value={
             avgCompletion === null ? (
@@ -212,6 +229,7 @@ export function ExaminerDashboard({
         {/* Attention stat — quiet when healthy (no green success theater);
             amber-tinted with the ⚠ glyph when something needs action. */}
         <StatCard
+          icon={AlertTriangle}
           label="Needs Attention"
           value={
             flaggedTotal > 0 ? (

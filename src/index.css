@@ -446,6 +446,18 @@ code-venue-page a,
   background: rgba(60, 46, 36, 0.05);
 }
 
+/* Current-page nav entry: weight, not color alone, so the active state
+   survives low vision / grayscale; aria-current="page" carries semantics. */
+[data-code-venue-page] .cv-nav-link.active {
+  font-weight: 600;
+}
+
+/* Keyboard focus ring consistent with the button/logo/toggle family. */
+[data-code-venue-page] .cv-nav-link:focus-visible {
+  outline: 2px solid var(--accent-caramel-deep);
+  outline-offset: 3px;
+}
+
 /* ---------- Buttons ---------- */
 
 [data-code-venue-page] .cv-btn {

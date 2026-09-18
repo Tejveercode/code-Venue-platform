@@ -71,9 +71,10 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           <CodePill code={room.code} />
         </div>
 
-        {/* Glance metrics — the numbers a teacher checks from across the
-            room. Attention facts (flagged / auto-submitted) render only when
-            non-zero: ⚠ + words, never color alone. Level-1 data. */}
+        {/* Glance metrics — one compact metadata row: participation,
+            attention, and recency grouped together (flex-wrap keeps it
+            responsive). Attention facts (flagged / auto-submitted) render
+            only when non-zero: ⚠ + words, never color alone. */}
         <div className="cv-exam-card-stats">
           <span className="cv-exam-metric">
             <strong>{c.joined}</strong> / {room.enrolledLimit} students
@@ -96,9 +97,14 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
               No flags
             </span>
           )}
+          <span className="cv-exam-metric">
+            {room.status === "LIVE" ? "Started" : "Ended"} {relTime(startedAt, now)}
+          </span>
         </div>
 
-        {/* Submission progress — one thin bar, not another number row. */}
+        {/* Submission progress — one thin bar; the percentage travels with
+            its meaning ("…% completed") instead of floating unlabelled. The
+            progressbar's accessible name carries the full counts for AT. */}
         <div
           className="cv-progress cv-progress-slim"
           role="progressbar"
@@ -113,14 +119,8 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
               style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
-          <span className="cv-progress-pct">{pct}%</span>
+          <span className="cv-progress-pct">{pct}% completed</span>
         </div>
-
-        {/* ROW 3 — relative time context ("Started 12 min ago"), so a fresh
-            room and a room running for two hours don't look identical. */}
-        <span className="cv-exam-time">
-          {room.status === "LIVE" ? "Started" : "Ended"} {relTime(startedAt, now)}
-        </span>
       </div>
 
       <div className="cv-exam-card-actions">
