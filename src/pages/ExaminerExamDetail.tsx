@@ -46,8 +46,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 /**
- * One exam's deep-work surface — where the information that used to be
- * crammed into the room accordion now lives, separated by task:
+ * One exam's deep-work surface — the room's information, separated by task:
  *
  *   Overview    — participation, completion, exam facts
  *   Monitoring  — the live subscription (ONLY while this tab is open)
@@ -255,8 +254,8 @@ function ExaminerExamDetailInner() {
 
               {/* PERFORMANCE CONTRACT: the getRoomMonitoring subscription
                   mounts only while this tab is open ("skip" otherwise) —
-                  same characteristic the old accordion had, never a
-                  per-room dashboard-wide subscription. */}
+                  one live query per open room, never a per-room
+                  dashboard-wide subscription. */}
               {tab === "monitoring" && (
                 <section className="cv-detail-panel">
                   <MonitoringPanel roomId={room._id} active />

@@ -916,11 +916,9 @@ code-venue-page a,
   background: var(--accent-caramel-rich-glow);
 }
 
-[data-code-venue-page] .cv-attention-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
+/* (.cv-attention-item base box moved to index-monitor.css, which is imported
+   after this sheet and fully restyled it; its .quiet text-color variant and
+   .cv-attention-quiet container stay here.) */
 
 [data-code-venue-page] .cv-attention-item .cv-attention-text {
   font-size: 13.5px;
@@ -1736,76 +1734,9 @@ code-venue-page a,
   background: #8c3225;
 }
 
-[data-code-venue-page] .cv-accordion {
-  display: flex;
-  flex-direction: column;
-}
-
-[data-code-venue-page] .cv-acc-item {
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
-  background: #fffdf9;
-  margin-bottom: 12px;
-  overflow: hidden;
-  transition: border-color 0.2s ease;
-}
-
-[data-code-venue-page] .cv-acc-item.open {
-  border-color: rgba(181, 115, 74, 0.35);
-}
-
-[data-code-venue-page] .cv-acc-trigger {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  background: none;
-  border: none;
-  font-family: inherit;
-  text-align: left;
-  padding: 18px 20px;
-  cursor: pointer;
-}
-
-[data-code-venue-page] .cv-acc-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-[data-code-venue-page] .cv-acc-title h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-[data-code-venue-page] .cv-acc-chev {
-  flex-shrink: 0;
-  color: var(--text-sub);
-  transition: transform 0.3s var(--ease-modal);
-}
-
-[data-code-venue-page] .cv-acc-item.open .cv-acc-chev {
-  transform: rotate(180deg);
-}
-
-[data-code-venue-page] .cv-acc-body {
-  overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.4s var(--ease-modal);
-}
-
-[data-code-venue-page] .cv-acc-content {
-  padding: 4px 20px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+/* (.cv-accordion family removed — the room accordion was replaced by exam
+   summary cards + the /examiner/exams/:roomId detail page; no TSX consumers
+   remain. Tombstone left so the removal is discoverable.) */
 
 [data-code-venue-page] .cv-detail-grid {
   display: grid;

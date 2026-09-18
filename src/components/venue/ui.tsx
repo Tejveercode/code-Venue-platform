@@ -297,5 +297,5 @@ export function Modal({ open, onClose, title, subtitle, children, footer }: Moda
   );
 }
 
-// (AccordionRow removed — the room accordion was replaced by the exam
-// summary cards + /examiner/exams/:roomId detail page; no consumers remain.)
+// (AccordionRow was removed when the room accordion was retired; the exam
+// summary cards and the /examiner/exams/:roomId detail page took over.)

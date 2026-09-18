@@ -91,40 +91,9 @@
   color: var(--text-sub);
 }
 
-/* Collapsed room header: compact glance metrics after the pills. */
-[data-code-venue-page] .cv-acc-metrics {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  font-weight: 600;
-}
-
-[data-code-venue-page] .cv-acc-metrics .danger {
-  /* "⚠ N flagged" in room headers: attention (rich caramel), not destructive red. */
-  color: var(--accent-caramel-rich);
-}
-
-/* Past-exam list: visually secondary to Active. */
-[data-code-venue-page] .cv-accordion-muted .cv-acc-item {
-  opacity: 0.88; /* muted text-sub stays ≥4.5:1 blended (0.78 → 4.15:1, failed) */
-}
-
-/* Header glance metrics: keep on one line on wide screens; under the app's
-   860px breakpoint let them wrap under the title instead of squeezing the
-   room name (mirrors .cv-mon-row-head handling). */
-@media (max-width: 860px) {
-  [data-code-venue-page] .cv-acc-title {
-    flex-wrap: wrap;
-  }
-  [data-code-venue-page] .cv-acc-metrics {
-    flex-basis: 100%;
-    margin-left: 26px; /* aligns under the title, clear of the chevron */
-  }
-}
+/* (.cv-acc-* room-header glance metrics, the muted past-exam accordion tint,
+   and their 860px wrap rule were removed with the retired room accordion —
+   no TSX consumers remain.) */
 
 /* Form-field helper text (violation-limit explanation in the room form). */
 [data-code-venue-page] .cv-field-hint {
@@ -403,12 +372,6 @@
 /* ---------- Accessibility ----------
    Visible keyboard focus on every interactive element in the monitoring
    surface and the room accordion (buttons otherwise rely on color alone). */
-
-[data-code-venue-page] .cv-acc-trigger:focus-visible {
-  outline: 2px solid var(--accent-caramel-deep);
-  outline-offset: -2px; /* inside the rounded card, not clipped by overflow */
-  border-radius: 14px;
-}
 
 [data-code-venue-page] .cv-mon-row-head:focus-visible,
 [data-code-venue-page] .cv-mon-row-head:focus-within {

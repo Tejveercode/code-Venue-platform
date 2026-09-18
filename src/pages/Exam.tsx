@@ -522,14 +522,14 @@ export default function Exam() {
                 Submitted — you may close this tab.
               </div>
               {lateFlag && (
-                <div className="cv-banner cv-banner-warn">
+                <div className="cv-banner cv-banner-warn" role="alert">
                   Your submission was recorded after the time limit and flagged
                   as late for your examiner.
                 </div>
               )}
             </>
           ) : roomClosed ? (
-            <div className="cv-banner cv-banner-warn">
+            <div className="cv-banner cv-banner-warn" role="alert">
               This exam has ended. Your editor is locked.
             </div>
           ) : null}

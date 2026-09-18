@@ -97,8 +97,15 @@ export function ExaminerDashboard({
     0,
   );
   const activeCount = list.filter((r) => r.status === "LIVE").length;
+  // Attention total = flagged OR auto-submitted students across all rooms —
+  // the same population the attention strip warns about. The two sets are
+  // disjoint: zero-tolerance rooms flag without auto-submitting; normal
+  // rooms auto-submit without flagging — so both must be summed.
   const flaggedTotal = list.reduce(
-    (sum, r) => sum + (counts?.[r._id]?.flagged ?? 0),
+    (sum, r) =>
+      sum +
+      (counts?.[r._id]?.flagged ?? 0) +
+      (counts?.[r._id]?.autoSubmitted ?? 0),
     0,
   );
   const avgCompletion = useMemo(() => {
@@ -227,17 +234,13 @@ export function ExaminerDashboard({
           }
         />
         {/* Attention stat — quiet when healthy (no green success theater);
-            amber-tinted with the ⚠ glyph when something needs action. */}
+            amber-tinted when flagged or auto-submitted students exist. The
+            bare number is intentional — a ⚠ glyph here duplicated the
+            attention strip's warning without adding meaning. */}
         <StatCard
           icon={AlertTriangle}
           label="Needs Attention"
-          value={
-            flaggedTotal > 0 ? (
-              <>⚠ {flaggedTotal}</>
-            ) : (
-              "0"
-            )
-          }
+          value={flaggedTotal > 0 ? flaggedTotal : "0"}
           attention={flaggedTotal > 0}
         />
       </div>
