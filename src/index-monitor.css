@@ -846,3 +846,18 @@
     flex-basis: 100%;
   }
 }
+
+/* Usability audit #3 — Exams heading ↔ search proximity: .cv-panel-head is
+   space-between, so on wide screens the search field is flung to the far
+   right edge while "Exams" hugs the left — the audit's core alignment
+   complaint. Group the pair on the LEFT by making the search wrapper stop
+   growing on top of its margin-left:auto behavior: the panel is the only
+   .cv-panel-head consumer, so a scoped rule here cannot regress Submissions.
+   The field keeps its 300px cap and still stacks under the heading at the
+   shared ≤860px breakpoint. */
+@media (min-width: 861px) {
+  [data-code-venue-page] .cv-panel-head .cv-search-wrap {
+    margin-left: 0;
+    margin-right: auto;
+  }
+}
