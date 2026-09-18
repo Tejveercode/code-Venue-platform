@@ -153,6 +153,10 @@ export default function Exam() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // Snapshot of time remaining, captured when the confirm dialog opens —
+  // calling Date.now() during render is impure (react-hooks/purity), and
+  // the dialog means to show the time as of the moment of confirmation.
+  const [confirmRemaining, setConfirmRemaining] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lateFlag, setLateFlag] = useState(false);
@@ -578,7 +582,10 @@ export default function Exam() {
                 {!locked && (
                   <button
                     className="cv-btn cv-btn-primary cv-btn-sm"
-                    onClick={() => setConfirming(true)}
+                    onClick={() => {
+                      setConfirmRemaining(Math.max(0, endsAt - Date.now()));
+                      setConfirming(true);
+                    }}
                     disabled={submitting}
                   >
                     Submit Code
@@ -647,7 +654,7 @@ export default function Exam() {
         }
       >
         <p className="cv-modal-sub" style={{ marginBottom: 0 }}>
-          Time remaining: {fmtClock(Math.max(0, endsAt - Date.now()))}
+          Time remaining: {fmtClock(confirmRemaining)}
         </p>
         {submitError && (
           <span className="cv-error" style={{ marginTop: 12, display: "block" }}>

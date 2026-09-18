@@ -387,11 +387,15 @@ code-venue-page a,
   padding-top: 0;
   padding-bottom: 0;
   opacity: 0;
+  /* Inert while closed — also removes the hidden links from tab order,
+     so a closed mobile menu never traps invisible keyboard focus. */
+  visibility: hidden;
   transition: max-height 0.35s var(--ease-modal), opacity 0.25s ease,
-    padding 0.35s var(--ease-modal);
+    padding 0.35s var(--ease-modal), visibility 0s linear 0.35s;
 }
 
 [data-code-venue-page] .cv-mobile-menu.open {
+  visibility: visible; /* override the closed-state inertness */
   max-height: 320px;
   padding-top: 12px;
   padding-bottom: 18px;

@@ -107,6 +107,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
         <Link
           className={"cv-nav-link" + (path.startsWith("/about") ? " active" : "")}
           to="/about"
+          aria-current={path.startsWith("/about") ? "page" : undefined}
         >
           About
         </Link>
@@ -120,6 +121,11 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
               : "")
           }
           to="/examiner-portal"
+          aria-current={
+            path.startsWith("/examiner-portal") || path.startsWith("/submissions")
+              ? "page"
+              : undefined
+          }
         >
           For Teachers
         </Link>
@@ -133,6 +139,11 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
               : "")
           }
           to="/student-portal"
+          aria-current={
+            path.startsWith("/student-portal") || path.startsWith("/exam")
+              ? "page"
+              : undefined
+          }
         >
           Student
         </Link>
@@ -274,6 +285,19 @@ export function Modal({ open, onClose, title, subtitle, children, footer }: Moda
       window.scrollTo(0, scrollY);
     };
   }, [open]);
+
+  // Escape dismisses the dialog (WAI-ARIA APG standard affordance): a
+  // keyboard user can always back out without hunting for the ✕ button.
+  // Window-level is correct for an aria-modal dialog; cleanup runs on
+  // close, so no listener ever outlives the open modal.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   if (!visible) return null;
 

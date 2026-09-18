@@ -377,17 +377,25 @@ export function CodeEditor({
   );
 
   // Four independently reconfigurable slices of the editor's configuration.
-  const compartments = useRef({
+  // Lazy stable value (not useRef().current, which reads a ref during
+  // render — react-hooks/refs): created once, identity-stable for effects.
+  const [compartments] = useState(() => ({
     language: new Compartment(),
     theme: new Compartment(),
     sizing: new Compartment(),
     readOnly: new Compartment(),
-  }).current;
+  }));
 
   // Read through refs so the view is built exactly once and never rebuilt for
   // a changing handler identity (the parent re-renders on every keystroke).
   const handlers = useRef({ onChange, onPaste, onCopy });
-  handlers.current = { onChange, onPaste, onCopy };
+  // Synced after render (not during it — react-hooks/refs): the layout
+  // effect runs before paint, so the view's update listeners always see
+  // the latest handlers while the view itself is never rebuilt for a new
+  // handler identity (the parent re-renders on every keystroke).
+  useLayoutEffect(() => {
+    handlers.current = { onChange, onPaste, onCopy };
+  });
 
   useLayoutEffect(() => {
     const host = hostRef.current;
