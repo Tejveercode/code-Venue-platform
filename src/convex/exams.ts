@@ -26,6 +26,7 @@ import {
   validateStudentId,
   validateClientId,
   validateSubmissionCode,
+  validateRevision,
   validateExaminerName,
   validateViolationLimit,
 } from "./validation";
@@ -1020,6 +1021,7 @@ async function upsertSubmission(
   studentId: Id<"students">,
   code: string,
   isFinal: boolean,
+  rev: number | undefined,
 ) {
   const existing = await ctx.db
     .query("submissions")
@@ -1028,10 +1030,13 @@ async function upsertSubmission(
   const now = Date.now();
   if (existing) {
     // Keep the FIRST final timestamp; content/updatedAt always refresh.
+    // rev rides along: final submits stamp their rev too (the submitting
+    // buffer is authoritative), non-final writes only advance it.
     await ctx.db.patch(existing._id, {
       code,
       isFinal: existing.isFinal || isFinal,
       updatedAt: now,
+      ...(rev !== undefined ? { rev } : {}),
       ...(isFinal ? { submittedAt: existing.submittedAt ?? now } : {}),
     });
     return existing._id;
@@ -1040,6 +1045,7 @@ async function upsertSubmission(
     code,
     isFinal,
     updatedAt: now,
+    ...(rev !== undefined ? { rev } : {}),
     ...(isFinal ? { submittedAt: now } : {}),
     roomId,
     studentId,
@@ -1052,6 +1058,12 @@ async function upsertSubmission(
  * Auth is the clientId (a 128-bit server-minted token stored per-browser);
  * a student can only ever write to their own row — never another student's.
  *
+ * Stale-write protection: every non-final write carries the client's edit
+ * revision (a monotonic counter incremented per editor change). The server
+ * refuses an autosave whose rev is not newer than the stored one — a slow
+ * in-flight request from an older buffer can never overwrite newer content,
+ * and the client re-saves from its (still dirty) latest buffer.
+ *
  * Rate limits (see rateLimits.ts): autosave gets a generous per-student token
  * bucket (silent failure — the client keeps the draft dirty and retries);
  * final submit gets a smaller bucket and throws a friendly ConvexError.
@@ -1062,10 +1074,12 @@ export const saveSubmission = mutation({
     clientId: v.string(),
     code: v.string(),
     isFinal: v.boolean(),
+    rev: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const clientId = validateClientId(args.clientId);
     const code = validateSubmissionCode(args.code);
+    const rev = validateRevision(args.rev);
 
     const student = await ctx.db
       .query("students")
@@ -1097,6 +1111,7 @@ export const saveSubmission = mutation({
         student._id,
         code,
         true,
+        rev,
       );
       return { submissionId, late } as const;
     }
@@ -1111,6 +1126,23 @@ export const saveSubmission = mutation({
       .unique();
     if (existing && existing.isFinal) return { locked: true } as const;
     if (room.status === "CLOSED") return { locked: true } as const;
+
+    // STALE-WRITE GUARD: an in-flight OLDER autosave (strictly smaller rev)
+    // arriving after a newer one already persisted must not overwrite newer
+    // content — report `stale` explicitly so the client keeps its draft dirty
+    // and the newest buffer re-saves on its next tick. An EQUAL rev is
+    // allowed through: the client always sends its latest buffer, so equal
+    // revs mean the same generation is being re-saved (e.g. after a dampened
+    // write) — rejecting it would put the retry into a stale-loop. Final
+    // submits bypass this guard: the visible buffer at submit time is
+    // authoritative.
+    if (
+      rev !== undefined &&
+      existing?.rev !== undefined &&
+      rev < existing.rev
+    ) {
+      return { stale: true } as const;
+    }
 
     // Spam damping: at most one autosave write per second. When the interval
     // hasn't elapsed, the write is SKIPPED — report that explicitly so the
@@ -1144,12 +1176,11 @@ export const saveSubmission = mutation({
       student._id,
       code,
       false,
+      rev,
     );
     return { submissionId } as const;
   },
-});
-
-/** Student's own submission state for /exam/:code (resume + submitted state). */
+});/** Student's own submission state for /exam/:code (resume + submitted state). */
 export const getMySubmission = query({
   args: { clientId: v.string() },
   handler: async (ctx, args) => {
@@ -1176,6 +1207,10 @@ export const getMySubmission = query({
             code: submission.code,
             isFinal: submission.isFinal,
             submittedAt: submission.submittedAt ?? null,
+            // The stored edit revision: a resuming client continues its
+            // revision counter from here so its first autosave is never
+            // rejected as stale by the resumed server state.
+            rev: submission.rev ?? 0,
           }
         : null,
     };

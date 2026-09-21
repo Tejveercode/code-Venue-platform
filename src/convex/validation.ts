@@ -108,6 +108,20 @@ export function validateSubmissionCode(raw: string): string {
 }
 
 /**
+ * Client edit revision for stale-write protection: a non-negative integer
+ * counting the student's editor changes. An autosave carrying a rev older
+ * than the stored one is skipped server-side instead of overwriting newer
+ * content.
+ */
+export function validateRevision(raw: number | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  if (!Number.isInteger(raw) || raw < 0 || raw > Number.MAX_SAFE_INTEGER) {
+    reject("Invalid save state — please reload the exam page.");
+  }
+  return raw;
+}
+
+/**
  * Room-level violation limit for exam-session monitoring.
  * 0 (or blank from the UI) = zero-tolerance: the first violation flags the
  * student. >0 = warnings until the student exceeds the count.

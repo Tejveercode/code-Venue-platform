@@ -92,11 +92,15 @@ const schema = defineSchema(
 
     // One row per student, ever (studentId unique). Autosave upserts with
     // isFinal: false; Submit upserts with isFinal: true + submittedAt.
+    // rev is the client's monotonic edit counter: the server refuses a
+    // non-final write whose rev is not newer than the stored one, so a slow
+    // in-flight autosave can never overwrite newer persisted content.
     submissions: defineTable({
       code: v.string(),
       isFinal: v.boolean(),
       updatedAt: v.number(),
       submittedAt: v.optional(v.number()),
+      rev: v.optional(v.number()),
       roomId: v.id("rooms"),
       studentId: v.id("students"),
     })

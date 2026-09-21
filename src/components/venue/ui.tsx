@@ -266,16 +266,35 @@ export const QuestionBox = memo(function QuestionBox({
 }: {
   prompt: string;
   label?: string;
-  /** Copy-resistance (user-select: none) for the student exam view — the
-   *  exam's question text is the content students shouldn't casually copy.
-   *  The examiner's own overview keeps normal selection: it's their data. */
+  /** Copy-resistance for the student exam view — the exam's question text is
+   *  the content students shouldn't casually copy. The examiner's own
+   *  overview keeps normal selection: it's their data. */
   protected?: boolean;
 }) {
+  // Layered copy DETERRENCE, scoped to the protected student view only:
+  //   layer 1 (CSS, .cv-question-box-protected): user-select:none blocks
+  //     casual drag selection; -webkit-touch-callout:none blocks the iOS
+  //     long-press menu.
+  //   layer 2 (here): the context menu and copy command are refused for
+  //     selections anchored inside the question box — the two easiest
+  //     keyboard/mouse paths around a selection block.
+  // This is friction, NOT a security boundary: DevTools, screenshots, OCR,
+  // browser extensions, and screen readers all bypass it entirely, and it
+  // must never be described as prevention. The editor, inputs, navigation,
+  // and every examiner-facing view are untouched.
+  const deterCopy = protectedContent
+    ? {
+        onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+        onCopy: (e: React.ClipboardEvent) => e.preventDefault(),
+      }
+    : undefined;
+
   return (
     <div
       className={
         "cv-question-box" + (protectedContent ? " cv-question-box-protected" : "")
       }
+      {...deterCopy}
     >
       <span className="cv-qb-label">{label}</span>
       <div className="cv-qb-body">{prompt}</div>

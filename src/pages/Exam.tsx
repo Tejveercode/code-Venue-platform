@@ -138,6 +138,7 @@ export default function Exam() {
           code: string;
           isFinal: boolean;
           submittedAt: number | null;
+          rev?: number;
         } | null;
       }
     | null
@@ -151,6 +152,11 @@ export default function Exam() {
   // Editor state
   const [codeValue, setCodeValue] = useState("");
   const codeRef = useRef("");
+  // Monotonic edit revision, sent with every save so the server can refuse a
+  // stale in-flight autosave that would overwrite newer persisted content.
+  // Initialized from the server's stored rev on resume (via the sync effect
+  // below) — restarting at 0 would make every write "stale" forever.
+  const revRef = useRef(0);
   // Pending dampened/failed-save retry (server skipped or rejected a write).
   // Cleared on unmount so the retry never touches a dead page.
   const saveRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,9 +217,12 @@ export default function Exam() {
   }, [mySub?.studentUid, mySub?.regNo, clientId, code]);
 
   // Restore the autosaved draft exactly once, from the DB — not the tab.
+  // The revision counter resumes from the stored server rev so the first
+  // post-resume autosave is never rejected as stale by the resumed state.
   useEffect(() => {
     if (mySub !== undefined && !initialized) {
       const restored = mySub?.submission?.code ?? "";
+      revRef.current = mySub?.submission?.rev ?? 0;
       setCodeValue(restored);
       codeRef.current = restored;
       setInitialized(true);
@@ -238,16 +247,28 @@ export default function Exam() {
     if (!clientId || lockedRef.current) return;
     setSaving(true);
     try {
+      // Snapshot the rev alongside the buffer: both describe the same
+      // generation of content, and the server compares against the stored rev.
+      const sentRev = revRef.current;
       const res: {
         error?: string;
         locked?: boolean;
         dampened?: boolean;
+        stale?: boolean;
       } = await save({
         clientId,
         code: codeRef.current,
         isFinal: false,
+        rev: sentRev,
       });
       if (res.locked) return;
+      if (res.stale) {
+        // A newer autosave already persisted content newer than this
+        // in-flight request. Do NOT clear dirty and do NOT retry from this
+        // (older) snapshot — the next keystroke re-saves the latest buffer,
+        // and any pending debounce timer already targets it.
+        return;
+      }
       if (res.dampened) {
         // The server skipped the write (min-interval damping) but the draft
         // has changed since the last persisted content — keep the dirty flag
@@ -304,6 +325,9 @@ export default function Exam() {
         clientId,
         code: codeRef.current,
         isFinal: true,
+        // The submitting buffer is authoritative — its rev is stamped so a
+        // late-arriving older autosave is refused as stale afterwards.
+        rev: revRef.current,
       });
       if (res.error) {
         autoRef.current = false; // allow the auto-submit effect to retry
@@ -674,6 +698,7 @@ export default function Exam() {
               onChange={(next) => {
                 setCodeValue(next);
                 codeRef.current = next;
+                revRef.current += 1;
                 setDirty(true);
               }}
               onBlur={() => {

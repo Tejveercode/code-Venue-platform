@@ -403,10 +403,14 @@ export function CodeEditor({
   // dispatch). Cleared after every render; the transaction object identity
   // never outlives the update that contained it.
   const reportedPasteEvents = useRef(new Set<unknown>());
-  // Flag set whenever a paste transaction was just reported, consumed by the
-  // DOM paste handler's deferred check (see below) so the two detection
-  // layers can never double-report the same physical paste.
-  const pasteTxJustReported = useRef(false);
+  // Monotonic count of pastes reported by the transaction layer. Each DOM
+  // paste event snapshots the count when it fires; its deferred check (see
+  // below) reports only if the count is UNCHANGED — i.e. no paste transaction
+  // materialized for THIS event. A counter can't be consumed by the wrong
+  // event the way a single boolean flag could when two pastes land within
+  // one macrotask window (rapid double-paste): every event compares against
+  // its own snapshot, so each physical paste is counted exactly once.
+  const pasteTxCount = useRef(0);
   useLayoutEffect(() => {
     reportedPasteEvents.current.clear();
   });
@@ -466,7 +470,7 @@ export function CodeEditor({
                 for (const tr of update.transactions) {
                   if (tr.docChanged && tr.isUserEvent("input.paste") && !reportedPasteEvents.current.has(tr)) {
                     reportedPasteEvents.current.add(tr);
-                    pasteTxJustReported.current = true;
+                    pasteTxCount.current += 1;
                     handlers.current.onPaste?.();
                   }
                 }
@@ -485,11 +489,17 @@ export function CodeEditor({
             // exotic paths) are reported from here. Net result: exactly one
             // violation report per physical paste, whichever layer saw it.
             paste: () => {
+              // Snapshot BEFORE CodeMirror converts this event into its
+              // transaction (user DOM handlers run first). If a paste
+              // transaction results, the transaction layer reports it and the
+              // counter moves — the deferred check below then knows this
+              // physical paste is already counted. Only pastes that produced
+              // NO transaction (event swallowed before conversion, exotic
+              // paths) are reported from here: exactly one violation report
+              // per physical paste, whichever layer saw it.
+              const txCountAtEvent = pasteTxCount.current;
               setTimeout(() => {
-                if (pasteTxJustReported.current) {
-                  pasteTxJustReported.current = false;
-                  return;
-                }
+                if (pasteTxCount.current !== txCountAtEvent) return;
                 handlers.current.onPaste?.();
               }, 0);
               return false;
