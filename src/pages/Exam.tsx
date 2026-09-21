@@ -151,9 +151,13 @@ export default function Exam() {
   // Editor state
   const [codeValue, setCodeValue] = useState("");
   const codeRef = useRef("");
-  // Pending dampened-save retry (server skipped a write inside its 1s
-  // min-interval). Cleared on unmount so the retry never touches a dead page.
+  // Pending dampened/failed-save retry (server skipped or rejected a write).
+  // Cleared on unmount so the retry never touches a dead page.
   const saveRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Consecutive autosave errors — bounds the retry loop so a permanently dead
+  // session (e.g. the student row was deleted) can't spin forever. Reset on
+  // any successful write.
+  const saveRetryFailuresRef = useRef(0);
   const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -260,11 +264,33 @@ export default function Exam() {
         }
         return;
       }
+      if (res.error) {
+        // The write did NOT persist (rate-limited, or the session is no longer
+        // valid). Same lost-update class as the dampened path above: keep the
+        // dirty flag so the next keystroke reschedules, and retry just past
+        // the autosave limiter's refill — bounded, so a dead session can't
+        // retry forever (after the cap the draft simply stays dirty until the
+        // student types again).
+        setDirty(true);
+        if (
+          saveRetryRef.current === null &&
+          saveRetryFailuresRef.current < 3
+        ) {
+          saveRetryFailuresRef.current += 1;
+          saveRetryRef.current = setTimeout(() => {
+            saveRetryRef.current = null;
+            void doSave();
+          }, 1100);
+        }
+        return;
+      }
+      saveRetryFailuresRef.current = 0;
       setSavedAt(Date.now());
       setSavedClock(Date.now());
       setDirty(false);
     } catch {
-      // transient failure — the next keystroke reschedules the save
+      // transient failure — dirty flag is untouched, so the next keystroke
+      // reschedules the save (a pending retry timer may also still fire)
     } finally {
       setSaving(false);
     }
