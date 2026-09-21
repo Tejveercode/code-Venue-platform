@@ -199,7 +199,7 @@ export default function Exam() {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
   }, [roomState?.name]);
 
-  // Never let a pending dampened-save retry outlive the page.
+  // Never let a pending dampened/failed-save retry outlive the page.
   useEffect(
     () => () => {
       if (saveRetryRef.current !== null) clearTimeout(saveRetryRef.current);
@@ -238,6 +238,15 @@ export default function Exam() {
   useEffect(() => {
     lockedRef.current = locked;
   }, [locked]);
+
+  // A completed submit makes any pending autosave retry pointless — clear it
+  // so the timer can't fire a doomed (locked) save after finalization.
+  useEffect(() => {
+    if (isFinal && saveRetryRef.current !== null) {
+      clearTimeout(saveRetryRef.current);
+      saveRetryRef.current = null;
+    }
+  }, [isFinal]);
 
   const endsAt = roomState
     ? roomState.startedAt + roomState.durationMinutes * 60_000
@@ -310,8 +319,22 @@ export default function Exam() {
       setSavedClock(Date.now());
       setDirty(false);
     } catch {
-      // transient failure — dirty flag is untouched, so the next keystroke
-      // reschedules the save (a pending retry timer may also still fire)
+      // Network/transport failure: the write did not persist. Keep the dirty
+      // flag (never fake "Saved") and retry just past the server window so
+      // content persists even if the student never types again — same
+      // bounded behavior as the error path above (a pending debounce may
+      // also still fire; both paths target the latest buffer).
+      setDirty(true);
+      if (
+        saveRetryRef.current === null &&
+        saveRetryFailuresRef.current < 3
+      ) {
+        saveRetryFailuresRef.current += 1;
+        saveRetryRef.current = setTimeout(() => {
+          saveRetryRef.current = null;
+          void doSave();
+        }, 1100);
+      }
     } finally {
       setSaving(false);
     }

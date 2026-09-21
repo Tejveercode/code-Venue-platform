@@ -675,6 +675,15 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 4px;
   }
+
+  /* Mobile examiner dashboard: the analytics row closes the page (IA order:
+     attention → active → past → analytics), so it needs no trailing 88px of
+     scroll runway — the page shell's padding is enough. */
+  [data-code-venue-page] .cv-dashboard-analytics {
+    margin-top: 20px;
+    padding-bottom: 0;
+    margin-bottom: -48px; /* cancels .cv-page-wrap's mobile bottom padding */
+  }
 }
 
 @media (max-width: 420px) {
