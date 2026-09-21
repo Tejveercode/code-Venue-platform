@@ -2,6 +2,7 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Plus,
   Search,
@@ -21,6 +22,10 @@ const EMPTY_COUNT: RoomCounts = {
   flagged: 0,
   autoSubmitted: 0,
 };
+
+/** How many past exams stay visible before "Show all" (progressive disclosure —
+ *  the scan layer surfaces what's actionable; history is opt-in). */
+const PAST_EXAMS_PREVIEW = 3;
 
 /** One statistic with a reason to exist — every value comes from live data.
  *  `icon` is decorative (aria-hidden): the visible label carries the meaning. */
@@ -63,13 +68,17 @@ const StatCard = memo(function StatCard({
 });
 
 /**
- * Examiner dashboard body — the scan layer.
+ * Examiner dashboard body — the scan layer, in working order:
  *
- * IA contract: this page answers "what is happening with my exams right
- * now?" — stats, attention items, and one summary card per exam with a
- * single primary action. Everything deeper (monitoring, prompt, settings,
- * the full submission workflow) lives in the per-exam detail page. The
- * dashboard holds ZERO live monitoring subscriptions.
+ *   1. ATTENTION   — actionable facts only (flagged / auto-submitted /
+ *                    outstanding submissions); silent when all is calm
+ *   2. ACTIVE EXAMS — one summary card per live exam, ONE primary action
+ *   3. PAST EXAMS  — collapsed summary; details on demand
+ *   4. ANALYTICS   — the at-a-glance numbers, last
+ *
+ * Deep work (monitoring rows, prompt, settings, grading) lives in the
+ * per-exam detail page — never on this page. The dashboard holds ZERO live
+ * monitoring subscriptions.
  */
 export function ExaminerDashboard({
   examinerName,
@@ -89,6 +98,7 @@ export function ExaminerDashboard({
   onProfile: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const [pastOpen, setPastOpen] = useState(false);
 
   // Stable identity while loading (react-hooks/exhaustive-deps): a fresh []
   // literal each render would invalidate every downstream useMemo.
@@ -163,6 +173,7 @@ export function ExaminerDashboard({
   const activeList = useMemo(() => list.filter((r) => r.status === "LIVE"), [list]);
   const pastList = useMemo(() => list.filter((r) => r.status !== "LIVE"), [list]);
   const query = search.trim().toLowerCase();
+  const searching = query.length > 0;
   const activeFiltered = useMemo(
     () =>
       !query
@@ -186,10 +197,19 @@ export function ExaminerDashboard({
     [pastList, query],
   );
   const noResults =
-    Boolean(query) &&
+    searching &&
     list.length > 0 &&
     activeFiltered.length === 0 &&
     pastFiltered.length === 0;
+
+  // Searching expands the past section automatically so matches in history
+  // are visible without a second click; it collapses again when cleared.
+  const pastRevealed = pastOpen || searching;
+  // Preview cap applies only to the idle (not searching) expanded list.
+  const pastVisible = searching
+    ? pastFiltered
+    : pastFiltered.slice(0, PAST_EXAMS_PREVIEW);
+  const pastHiddenCount = pastFiltered.length - pastVisible.length;
 
   const greeting = greetingNew
     ? `Welcome, ${examinerName}!`
@@ -215,40 +235,9 @@ export function ExaminerDashboard({
         </div>
       </div>
 
-      {/* cv-kpi-row: page-specific responsive ladder (2×2 ≤1024px) scoped
-          here so the shared .cv-stat-row family keeps Landing's 3-card
-          proof row sizing independent. */}
-      <div className="cv-stat-row cv-kpi-row">
-        <StatCard label="Active Exams" value={activeCount} live icon={ClipboardList} />
-        <StatCard label="Total Students" value={totalStudents} icon={Users} />
-        <StatCard
-          icon={CheckCircle2}
-          label="Completion"
-          value={
-            avgCompletion === null ? (
-              "—"
-            ) : (
-              <>
-                {avgCompletion}
-                <small>%</small>
-              </>
-            )
-          }
-        />
-        {/* Attention stat — quiet when healthy (no green success theater);
-            amber-tinted when flagged or auto-submitted students exist. The
-            bare number is intentional — a ⚠ glyph here duplicated the
-            attention strip's warning without adding meaning. */}
-        <StatCard
-          icon={AlertTriangle}
-          label="Needs Attention"
-          value={flaggedTotal > 0 ? flaggedTotal : "0"}
-          attention={flaggedTotal > 0}
-        />
-      </div>
-
-      {/* Attention layer: warn/info items when actionable; a quiet
-          zero-state line when healthy — never an empty warning panel. */}
+      {/* ── 1 · ATTENTION ────────────────────────────────────────────────────
+          Actionable facts first. Warn items (flagged / auto-submitted) carry
+          a Review action; info items are context only. Silent when healthy. */}
       {attentionItems.length > 0 ? (
         <div className="cv-attention" role="status">
           {attentionItems.map((item) => (
@@ -286,9 +275,15 @@ export function ExaminerDashboard({
         )
       )}
 
+      {/* ── 2 · ACTIVE EXAMS ─────────────────────────────────────────────── */}
       <section className="cv-card cv-panel">
         <div className="cv-panel-head">
-          <h2>Exams</h2>
+          <h2>
+            Active exams
+            <span className="cv-panel-count" aria-hidden="true">
+              {activeList.length}
+            </span>
+          </h2>
           <div className="cv-search-wrap">
             <Search size={15} className="cv-search-icon" aria-hidden="true" />
             <input
@@ -319,57 +314,144 @@ export function ExaminerDashboard({
           <div className="cv-empty">
             No exams found for "{search}". Try a different name or code.
           </div>
+        ) : activeFiltered.length === 0 ? (
+          /* Searching hit only past exams (or everything active ended) —
+             say so instead of rendering an empty section. */
+          <div className="cv-empty cv-empty-compact">
+            <p className="cv-empty-title">No active exams</p>
+            <p className="cv-empty-sub">
+              Create an exam to start a live coding session.
+            </p>
+            <button className="cv-btn cv-btn-primary" onClick={onCreate}>
+              <Plus size={16} /> Create New Exam
+            </button>
+          </div>
         ) : (
-          <>
-            {activeList.length === 0 && pastList.length > 0 && (
-              <div className="cv-empty cv-empty-compact">
-                <p className="cv-empty-title">No active exams</p>
-                <p className="cv-empty-sub">
-                  Create an exam to start a live coding session.
-                </p>
-                <button className="cv-btn cv-btn-primary" onClick={onCreate}>
-                  <Plus size={16} /> Create New Exam
-                </button>
+          <div className="cv-exam-list">
+            {activeFiltered.map((room) => (
+              <div key={room._id} id={`exam-card-${room._id}`}>
+                <ExamSummaryCard
+                  room={room}
+                  c={counts?.[room._id] ?? EMPTY_COUNT}
+                  onEnd={onEnd}
+                />
               </div>
-            )}
-
-            {activeList.length > 0 && (
-              <>
-                <h3 className="cv-list-heading">Active exams</h3>
-                <div className="cv-exam-list">
-                  {activeFiltered.map((room) => (
-                    <div key={room._id} id={`exam-card-${room._id}`}>
-                      <ExamSummaryCard
-                        room={room}
-                        c={counts?.[room._id] ?? EMPTY_COUNT}
-                        onEnd={onEnd}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Past exams — same card, no End action, visually secondary. */}
-            {pastList.length > 0 && (
-              <>
-                <h3 className="cv-list-heading">Past exams</h3>
-                <div className="cv-exam-list cv-exam-list-muted">
-                  {pastFiltered.map((room) => (
-                    <div key={room._id} id={`exam-card-${room._id}`}>
-                      <ExamSummaryCard
-                        room={room}
-                        c={counts?.[room._id] ?? EMPTY_COUNT}
-                        onEnd={null}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
+            ))}
+          </div>
         )}
+      </section>
+
+      {/* ── 3 · PAST EXAMS ──────────────────────────────────────────────────
+          History on demand: collapsed to a one-line summary by default;
+          expands to a short preview, then fully. Hidden from tab order while
+          collapsed (inert container) so nothing invisible is focusable. */}
+      {pastList.length > 0 && (
+        <section className="cv-card cv-panel cv-past-panel">
+          <button
+            type="button"
+            className="cv-past-toggle"
+            aria-expanded={pastRevealed}
+            aria-controls="cv-past-list"
+            onClick={() => setPastOpen((o) => !o)}
+          >
+            <span className="cv-past-toggle-label">
+              Past exams
+              <span className="cv-panel-count" aria-hidden="true">
+                {pastList.length}
+              </span>
+              {/* Only shown while collapsed — the expansion state is carried
+                  by aria-expanded + the chevron, not by color or position. */}
+              {!pastRevealed && (
+                <span className="cv-past-toggle-hint">
+                  {pastSummary(pastList, counts)}
+                </span>
+              )}
+            </span>
+            <ChevronDown
+              size={16}
+              className={"cv-past-chevron" + (pastRevealed ? " open" : "")}
+              aria-hidden="true"
+            />
+          </button>
+
+          <div
+            id="cv-past-list"
+            className="cv-past-body"
+            {...(pastRevealed ? {} : { inert: "" as unknown as boolean })}
+          >
+            <div className="cv-exam-list cv-exam-list-muted">
+              {pastVisible.map((room) => (
+                <div key={room._id} id={`exam-card-${room._id}`}>
+                  <ExamSummaryCard
+                    room={room}
+                    c={counts?.[room._id] ?? EMPTY_COUNT}
+                    onEnd={null}
+                  />
+                </div>
+              ))}
+            </div>
+            {pastHiddenCount > 0 && (
+              <button
+                type="button"
+                className="cv-btn cv-btn-secondary cv-btn-sm cv-past-more"
+                onClick={() => setPastOpen(true)}
+              >
+                Show {pastHiddenCount} more past exam
+                {pastHiddenCount === 1 ? "" : "s"}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── 4 · ANALYTICS ───────────────────────────────────────────────────
+          The at-a-glance numbers close the page, after everything actionable
+          has had its say. */}
+      <section className="cv-dashboard-analytics" aria-label="Exam statistics">
+        <h3 className="cv-list-heading">At a glance</h3>
+        {/* cv-kpi-row: page-specific responsive ladder (2×2 ≤1024px) scoped
+            here so the shared .cv-stat-row family keeps Landing's 3-card
+            proof row sizing independent. */}
+        <div className="cv-stat-row cv-kpi-row">
+          <StatCard label="Active Exams" value={activeCount} live icon={ClipboardList} />
+          <StatCard label="Total Students" value={totalStudents} icon={Users} />
+          <StatCard
+            icon={CheckCircle2}
+            label="Completion"
+            value={
+              avgCompletion === null ? (
+                "—"
+              ) : (
+                <>
+                  {avgCompletion}
+                  <small>%</small>
+                </>
+              )
+            }
+          />
+          {/* Attention stat — quiet when healthy (no green success theater);
+              amber-tinted when flagged or auto-submitted students exist. The
+              bare number is intentional — a ⚠ glyph here duplicated the
+              attention strip's warning without adding meaning. */}
+          <StatCard
+            icon={AlertTriangle}
+            label="Needs Attention"
+            value={flaggedTotal > 0 ? flaggedTotal : "0"}
+            attention={flaggedTotal > 0}
+          />
+        </div>
       </section>
     </main>
   );
+}
+
+/** One-line summary of the collapsed past-exams section (what + how many). */
+function pastSummary(pastList: Room[], counts: Counts | undefined): string {
+  const students = pastList.reduce(
+    (sum, r) => sum + (counts?.[r._id]?.joined ?? 0),
+    0,
+  );
+  const latest = pastList[0];
+  if (!latest) return "";
+  return `${students} ${students === 1 ? "student" : "students"} · latest: ${latest.name}`;
 }

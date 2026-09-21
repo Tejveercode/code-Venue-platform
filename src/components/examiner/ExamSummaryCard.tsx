@@ -1,6 +1,6 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import { ChevronRight, Square } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { ClosedPill, CodePill, LivePill } from "@/components/venue/ui";
 
@@ -49,19 +49,27 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
       ? Math.round((c.submitted / room.enrolledLimit) * 100)
       : 0;
   const needsAttention = c.flagged > 0 || c.autoSubmitted > 0;
-  // Card-local render clock, captured once per mounted card. Minute-level
-  // granularity is plenty for a scan surface; the label refreshes whenever
-  // the card re-renders on live counts/status changes.
-  const [now] = useState(() => Date.now());
+  // Minute-level clock so a LIVE card's "Ends in N min" actually counts down
+  // while the dashboard is open (the card re-renders on every live count
+  // update, but between updates the label would otherwise freeze at the
+  // mount-time value — stale information on the scan surface).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (room.status !== "LIVE") return;
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [room.status]);
   // Time context — the actionable fact for each state: a live exam's ends-at
   // is when the teacher wraps up (also surfaces "Time expired" when the
   // window has passed but the room isn't closed yet — students' late submits
-  // are being flagged); a past exam's is when it ended.
+  // are being flagged); a past exam's is when it ended. `Date.now()` here is
+  // fine: the minute interval (LIVE) or card re-renders (closed) own updates,
+  // and relTime granularity is minutes anyway.
   const timeContext =
     room.status === "LIVE"
       ? (() => {
           const endsAt = room.startedAt + room.durationMinutes * 60_000;
-          const minsLeft = Math.ceil((endsAt - now) / 60_000);
+          const minsLeft = Math.ceil((endsAt - Date.now()) / 60_000);
           if (minsLeft > 90)
             return `Ends in ${Math.round(minsLeft / 60)} hr`;
           return minsLeft > 0 ? `Ends in ${minsLeft} min` : "Time expired";

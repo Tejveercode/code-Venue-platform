@@ -389,6 +389,12 @@
   [data-code-venue-page] .cv-mon-row-head {
     transition: none;
   }
+  /* Full open/close must also be instant (index.css only stills the item
+     entrance stagger). No max-height/padding ease, no icon morph. */
+  [data-code-venue-page] .cv-mobile-menu,
+  [data-code-venue-page] .cv-menu-toggle svg {
+    transition: none;
+  }
 }
 
 /* ===========================================================================
@@ -790,6 +796,109 @@
   [data-code-venue-page] .cv-kpi-row .cv-stat-card {
     flex: 1 1 42%;
   }
+}
+
+/* ---- Dashboard IA pass: panel counts + past-exam disclosure ------------- */
+
+/* Count chip inside a panel heading — silent for 0 (an empty Active list
+   already has its own message; "Active exams 0" says nothing new). */
+[data-code-venue-page] .cv-panel-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  margin-left: 9px;
+  border-radius: 999px;
+  background: var(--accent-glow);
+  color: var(--accent-caramel-deep); /* 12.5px chip on tint: 5.1:1 */
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-code-venue-page] .cv-panel-head h2 {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Past-exams panel: the collapsed toggle is the whole interaction surface. */
+[data-code-venue-page] .cv-past-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+[data-code-venue-page] .cv-past-toggle:focus-visible {
+  outline: 2px solid var(--accent-caramel-deep);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+[data-code-venue-page] .cv-past-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Collapsed-state summary — what and how many, without expanding. */
+[data-code-venue-page] .cv-past-toggle-hint {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-sub);
+}
+
+[data-code-venue-page] .cv-past-chevron {
+  flex-shrink: 0;
+  color: var(--text-sub);
+  transition: transform 0.24s var(--ease-modal);
+}
+
+[data-code-venue-page] .cv-past-chevron.open {
+  transform: rotate(180deg);
+}
+
+[data-code-venue-page] .cv-past-body {
+  margin-top: 14px;
+}
+
+[data-code-venue-page] .cv-past-more {
+  margin-top: 4px;
+}
+
+@media (max-width: 860px) {
+  [data-code-venue-page] .cv-past-toggle-label {
+    font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .cv-past-chevron {
+    transition: none;
+  }
+}
+
+/* Analytics section closes the page: same heading rhythm as the exam lists. */
+[data-code-venue-page] .cv-dashboard-analytics {
+  margin-top: 28px;
+}
+
+[data-code-venue-page] .cv-dashboard-analytics .cv-stat-row {
+  margin-top: 12px;
 }
 
 /* Usability audit #3 — stacked panel head (≤860px): the search WRAPPER must

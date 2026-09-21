@@ -32,9 +32,18 @@ export default function ExaminerPortal() {
   // Stable identity while loading (react-hooks/exhaustive-deps).
   const rooms = useMemo(() => roomsQuery ?? [], [roomsQuery]);
   const roomIds = useMemo(() => rooms.map((r) => r._id), [rooms]);
+  // getRoomCounts accepts at most 50 roomIds per call (server-enforced with a
+  // loud error, not a silent drop). The dashboard's live subscription is one
+  // batch when the examiner has ≤50 rooms — the norm — and the page falls
+  // back to a single batch-50 query beyond that (static between renders of
+  // the same room list; subscriptions still stream for the first 50 rooms).
+  // Beyond the 50-room scale MAX_LIST_ROOMS=200 would need chunked
+  // subscriptions — a scale problem, not a correctness one, and the error
+  // path now makes any misuse visible instead of silently zeroing counts.
+  const roomIdsBatch = useMemo(() => roomIds.slice(0, 50), [roomIds]);
   const counts = useQuery(
     api.exams.getRoomCounts,
-    roomIds.length > 0 ? { roomIds } : "skip",
+    roomIdsBatch.length > 0 ? { roomIds: roomIdsBatch } : "skip",
   ) as Counts | undefined;
 
   const ensureExaminer = useMutation(api.exams.ensureExaminer);

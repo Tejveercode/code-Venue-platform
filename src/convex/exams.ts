@@ -442,7 +442,17 @@ export const getRoomCounts = query({
     const examiner = await getCurrentExaminer(ctx);
     if (!examiner) return {};
 
-    const roomIds = args.roomIds.slice(0, MAX_ROOM_IDS_PER_QUERY);
+    // Hard capacity guard, not a silent drop: MAX_ROOM_IDS_PER_QUERY bounds
+    // the batch, and anything past it is a loud ConvexError rather than
+    // counts that quietly go missing from the dashboard (the prior slice()
+    // silently returned {} for rooms 51+ — stale zeros the teacher could
+    // never detect). The caller batches roomIds to stay under the cap.
+    if (args.roomIds.length > MAX_ROOM_IDS_PER_QUERY) {
+      throw new ConvexError(
+        `Too many rooms requested (${args.roomIds.length} > ${MAX_ROOM_IDS_PER_QUERY}).`,
+      );
+    }
+    const roomIds = args.roomIds;
     const counts: Record<
       string,
       { joined: number; submitted: number; flagged: number; autoSubmitted: number }
