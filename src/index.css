@@ -1847,14 +1847,18 @@ code-venue-page a,
   border-radius: 12px;
   background: #fffdf9;
   padding: 14px 16px;
-  /* COPY RESISTANCE - exam/question content only. This container is the
-     exam's question text; the code editor, inputs, and navigation keep
-     normal selection. Discourages casual select/copy of the exam prompt.
-     NOT a security boundary: devtools, screenshots, OCR, extensions, and
-     accessibility APIs all bypass it by design - detection (violation
-     monitoring), not prevention, is the product's integrity posture.
-     Screen readers read the DOM regardless of user-select, so this does
-     not damage AT users; keyboard focus and navigation are unaffected. */
+}
+
+/* COPY RESISTANCE (student exam view only - see QuestionBox's `protected`
+   prop). The exam's question text discourages casual select/copy; the
+   examiner's own overview keeps normal selection because it is their data.
+   The code editor, inputs, and navigation are NEVER protected.
+   NOT a security boundary: devtools, screenshots, OCR, extensions, and
+   accessibility APIs all bypass it by design - detection (violation
+   monitoring), not prevention, is the product's integrity posture.
+   Screen readers read the DOM regardless of user-select, so this does not
+   damage AT users; keyboard focus and navigation are unaffected. */
+[data-code-venue-page] .cv-question-box-protected {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none; /* iOS long-press callout (copy/share) */

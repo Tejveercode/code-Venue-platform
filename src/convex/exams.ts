@@ -908,7 +908,11 @@ export const joinRoom = mutation({
 
     // Per-code window: only consumes when the mutation completes (committed
     // returns count; thrown errors roll back), which is exactly the behavior
-    // a brute-force guard needs.
+    // a brute-force guard needs. The global window beneath it blunts
+    // enumeration ACROSS codes, which the per-code key cannot see.
+    await enforceRateLimit(ctx, "joinGlobal", {
+      message: "The exam service is very busy right now. Try again shortly.",
+    });
     await enforceRateLimit(ctx, "joinPerCode", {
       key: code,
       message: "Too many join attempts for this room code.",

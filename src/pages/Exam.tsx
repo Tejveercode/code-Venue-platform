@@ -603,7 +603,10 @@ export default function Exam() {
             </div>
           )}
 
-          <QuestionBox prompt={roomState.prompt} />
+          {/* Copy-resistance: the exam prompt is the content students shouldn't
+              casually copy. Editor/inputs stay fully selectable. Not a security
+              boundary — violation monitoring is the integrity layer. */}
+          <QuestionBox prompt={roomState.prompt} protected />
 
           <div
             className={

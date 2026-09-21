@@ -56,6 +56,15 @@ export const RATE_LIMITS = {
     rate: 60,
     period: MINUTE,
   },
+  // Global join ceiling: the per-code limit above cannot stop an attacker
+  // SWEEPING many different codes (each code gets a fresh window), and the
+  // 10,000-code space is small. A fixed global cap blunts enumeration while
+  // leaving even several large classrooms joining simultaneously unaffected.
+  joinGlobal: {
+    kind: "fixed window",
+    rate: 1_200,
+    period: MINUTE,
+  },
 
   // --- Student autosave (loose — fires every few seconds while typing) ------
   // Debounced autosave is ~24 writes/min; 60/min refill with a 30-write burst

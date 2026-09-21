@@ -191,8 +191,14 @@ function ExaminerExamDetailInner() {
                     onClick={() => setTab(t.key)}
                   >
                     {t.label}
-                    {t.key === "monitoring" && c.flagged > 0 && (
-                      <span className="cv-tab-badge">⚠ {c.flagged}</span>
+                    {/* Attention badge = the same population the monitoring
+                        rows highlight (flagged OR auto-submitted) and the
+                        dashboard's Needs Attention KPI counts — the two sets
+                        are disjoint, so both must be included. */}
+                    {t.key === "monitoring" && c.flagged + c.autoSubmitted > 0 && (
+                      <span className="cv-tab-badge">
+                        ⚠ {c.flagged + c.autoSubmitted}
+                      </span>
                     )}
                   </button>
                 ))}
