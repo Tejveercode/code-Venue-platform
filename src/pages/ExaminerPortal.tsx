@@ -210,7 +210,7 @@ export default function ExaminerPortal() {
   const displayName = examiner?.name ?? (user?.name ?? "examiner");
 
   return (
-    <CodeVenuePage>
+    <CodeVenuePage quietBackground>
       <div className="cv-shell">
         <VenueHeader
           actions={

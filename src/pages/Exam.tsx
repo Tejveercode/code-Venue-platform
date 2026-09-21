@@ -617,7 +617,7 @@ export default function Exam() {
         : "Not saved yet";
 
   return (
-    <CodeVenuePage>
+    <CodeVenuePage quietBackground>
       <div className="cv-shell">
         <VenueHeader />
         <main className="cv-exam-wrap">

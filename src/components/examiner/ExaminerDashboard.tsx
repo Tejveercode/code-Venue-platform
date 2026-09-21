@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { ExamSummaryCard, type RoomCounts } from "./ExamSummaryCard";
 
 type Room = Doc<"rooms">;
@@ -100,6 +101,10 @@ export function ExaminerDashboard({
 }) {
   const [search, setSearch] = useState("");
   const [pastOpen, setPastOpen] = useState(false);
+  // Review → the exam's detail page Monitoring tab. Client-side navigation
+  // (no reload), shareable/back-safe history. The tab key rides in the URL
+  // (?tab=monitoring), read by ExaminerExamDetail.
+  const navigate = useNavigate();
 
   // Stable identity while loading (react-hooks/exhaustive-deps): a fresh []
   // literal each render would invalidate every downstream useMemo.
@@ -255,12 +260,11 @@ export function ExaminerDashboard({
                 <button
                   type="button"
                   className="cv-btn cv-btn-secondary cv-btn-sm"
-                  onClick={() => {
-                    const id = item.key.slice("flag-".length);
-                    document
-                      .getElementById(`exam-card-${id}`)
-                      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }}
+                  onClick={() =>
+                    navigate(
+                      `/examiner/exams/${item.key.slice("flag-".length)}?tab=monitoring`,
+                    )
+                  }
                 >
                   Review
                 </button>

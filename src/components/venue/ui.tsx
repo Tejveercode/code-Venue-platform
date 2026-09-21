@@ -8,10 +8,28 @@ import { useAuth } from "@/hooks/use-auth";
 // Page shell: warm cream bg + pixel canvas ambient animation
 // ---------------------------------------------------------------------------
 
-export function CodeVenuePage({ children }: { children: ReactNode }) {
+/**
+ * Page shell. `data-cv-quiet-bg` marks data-heavy examiner workspaces
+ * (monitoring, dashboard, detail, submissions): the ambient dot field
+ * (VoidFieldCanvas) reads the attribute and drops to a whisper level, so the
+ * canvas stays part of the brand on marketing surfaces but stops competing
+ * with tables/rows where content must dominate decoration.
+ */
+export function CodeVenuePage({
+  children,
+  quietBackground = false,
+}: {
+  children: ReactNode;
+  /** Quiet the ambient background for data-heavy workspaces. */
+  quietBackground?: boolean;
+}) {
   return (
-    <div data-code-venue-page className="min-h-screen flex flex-col">
-      <VoidFieldCanvas />
+    <div
+      data-code-venue-page
+      className="min-h-screen flex flex-col"
+      {...(quietBackground ? { "data-cv-quiet-bg": "" } : {})}
+    >
+      <VoidFieldCanvas quiet={quietBackground} />
       {children}
     </div>
   );
@@ -110,7 +128,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
     if (!menuOpen) return;
     const firstLink = headerRef.current?.querySelector<HTMLAnchorElement>(
       "#cv-mobile-menu a.cv-nav-link",
-    );
+   );
     const raf = requestAnimationFrame(() => firstLink?.focus());
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

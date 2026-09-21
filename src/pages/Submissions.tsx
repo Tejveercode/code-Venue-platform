@@ -411,7 +411,7 @@ export default function Submissions() {
   }, []);
 
   return (
-    <CodeVenuePage>
+    <CodeVenuePage quietBackground>
       <div className="cv-shell">
         <VenueHeader />
         <main className="cv-page-wrap">

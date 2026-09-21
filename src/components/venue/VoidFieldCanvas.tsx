@@ -330,7 +330,7 @@ function buildController(canvas: HTMLCanvasElement): Controller | null {
   return c;
 }
 
-export function VoidFieldCanvas() {
+export function VoidFieldCanvas({ quiet = false }: { quiet?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const host = hostRef.current;
@@ -353,7 +353,11 @@ export function VoidFieldCanvas() {
     // Readability: keep the field as ambience, not competition. 0.7 puts peak
     // dot contrast clearly visible in margins/gutters while staying well under
     // body-text contrast (see the veil below for the text-zone balance).
-    canvas.style.opacity = "0.7";
+    // QUIET mode (data-heavy examiner workspaces): drop the field to a
+    // whisper so rows, counts, and borders dominate — same brand texture,
+    // content-first hierarchy. The veil is lifted too, so the quieter field
+    // never reads as a dirty haze behind the cards.
+    canvas.style.opacity = quiet ? "0.22" : "0.7";
     host.appendChild(canvas);
 
     // Readability veil — a soft cream wash ONLY over the content band where
@@ -371,8 +375,9 @@ export function VoidFieldCanvas() {
     veil.style.inset = "0";
     veil.style.zIndex = "-1";
     veil.style.pointerEvents = "none";
-    veil.style.background =
-      "radial-gradient(ellipse 60% 48% at 50% 32%, rgba(247, 243, 236, 0.5) 0%, rgba(247, 243, 236, 0.4) 55%, rgba(247, 243, 236, 0) 100%)";
+    veil.style.background = quiet
+      ? "radial-gradient(ellipse 75% 70% at 50% 40%, rgba(247, 243, 236, 0.85) 0%, rgba(247, 243, 236, 0.6) 60%, rgba(247, 243, 236, 0) 100%)"
+      : "radial-gradient(ellipse 60% 48% at 50% 32%, rgba(247, 243, 236, 0.5) 0%, rgba(247, 243, 236, 0.4) 55%, rgba(247, 243, 236, 0) 100%)";
     host.appendChild(veil);
 
     const c = buildController(canvas);
@@ -394,6 +399,10 @@ export function VoidFieldCanvas() {
       veil.remove();
       canvas.remove();
     };
+    // `quiet` is fixed per page mount (each page declares its own mode), so
+    // the mount-only effect reading it once is correct — declared to satisfy
+    // the lint rule without re-initializing WebGL on an unchanged prop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return <div ref={hostRef} aria-hidden="true" data-pixel-canvas />;
 }

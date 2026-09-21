@@ -107,7 +107,9 @@
 
 [data-code-venue-page] .cv-monitor {
   margin-top: 14px;
-  background: #fffdf9;
+  /* Quieter workspace shell: near-opaque cream stops the dot field from
+     competing behind data-dense rows while staying in the brand family. */
+  background: rgba(255, 253, 249, 0.92);
   border: 1px solid var(--surface-border);
   border-radius: 14px;
   padding: 14px 16px;
@@ -150,17 +152,26 @@
 }
 
 [data-code-venue-page] .cv-mon-row {
-  border: 1px solid transparent;
-  border-radius: 10px;
+  /* ONE surface per student: the row head and its expanded breakdown share
+     this card (breakdown renders inside it, separated by an internal
+     divider) — the previous head-tint + nested white breakdown box produced
+     a boxed-in-borders look. */
+  background: rgba(255, 253, 249, 0.92);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
 }
 
 [data-code-venue-page] .cv-mon-row:hover {
-  background: var(--accent-glow);
+  border-color: rgba(60, 46, 36, 0.24);
 }
 
+/* Attention state — a quiet left rail, not a full fill that competes with
+   the row's own surface (and no nested highlight-on-highlight). */
 [data-code-venue-page] .cv-mon-row.flagged {
-  background: var(--accent-caramel-rich-glow);
-  border-color: rgba(122, 59, 18, 0.3);
+  border-color: rgba(122, 59, 18, 0.35);
+  box-shadow: inset 3px 0 0 var(--accent-caramel-rich);
 }
 
 [data-code-venue-page] .cv-mon-row-head {
@@ -169,7 +180,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 10px;
+  padding: 12px 14px;
   background: none;
   border: none;
   font-family: inherit;
@@ -285,11 +296,11 @@
 }
 
 [data-code-venue-page] .cv-mon-breakdown {
-  margin: 2px 6px 10px;
-  padding: 10px 12px;
-  background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: 10px;
+  /* Inside the same card: hairline divider, no second box. */
+  margin: 0;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--surface-border);
+  background: transparent;
   font-size: 12.5px;
 }
 
@@ -532,10 +543,9 @@
    Visible keyboard focus on every interactive element in the monitoring
    surface and the room accordion (buttons otherwise rely on color alone). */
 
-[data-code-venue-page] .cv-mon-row-head:focus-visible,
-[data-code-venue-page] .cv-mon-row-head:focus-within {
+[data-code-venue-page] .cv-mon-row-head:focus-visible {
   outline: 2px solid var(--accent-caramel-deep);
-  outline-offset: 2px;
+  outline-offset: -2px; /* inside the card — no clipped ring on rounded edges */
 }
 
 [data-code-venue-page] .cv-monitor-toggle:focus-visible {
@@ -690,15 +700,21 @@
   opacity: 0.88; /* recede without dropping 13px labels under AA (0.72 → 3.84:1) */
 }
 
-/* ---- Stat card attention variant ---------------------------------------- */
+/* ---- Stat card attention variant ----------------------------------------
 
-[data-code-venue-page] .cv-stat-card-attention {
-  border-color: rgba(122, 59, 18, 0.5);
-  background: linear-gradient(
-    to bottom,
-    var(--accent-caramel-rich-glow),
-    var(--surface-color) 70%
-  );
+   The NEEDS ATTENTION KPI must NOT look permanently selected/focused/error:
+   its structure, border, and elevation are identical to the other KPI cards.
+   The semantic signal lives in the content — the amber icon plus the amber
+   value — which is exactly how the sibling KPIs express their meaning
+   (icon tint, not chrome). Interaction (hover/focus) is the only thing that
+   adds emphasis, and these cards aren't interactive, so there is none. */
+
+[data-code-venue-page] .cv-stat-card-attention .cv-stat-icon {
+  color: var(--accent-caramel-rich);
+}
+
+[data-code-venue-page] .cv-stat-card-attention .cv-stat-value {
+  color: var(--accent-caramel-rich);
 }
 
 /* Decorative metric icon inside the stat label — visually secondary to the

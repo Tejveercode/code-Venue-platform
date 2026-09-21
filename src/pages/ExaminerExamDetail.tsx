@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Pencil, Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { RequireAuth } from "@/components/RequireAuth";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -73,7 +73,22 @@ function ExaminerExamDetailInner() {
   const endRoomMutation = useMutation(api.exams.endRoom);
   const deleteRoomMutation = useMutation(api.exams.deleteRoom);
 
-  const [tab, setTab] = useState<TabKey>("overview");
+  // Active tab, synced with the URL (?tab=monitoring) so the dashboard's
+  // Review button can deep-link straight into the monitoring context. The
+  // initial value is read once; afterwards setTab pushes the param so the
+  // teacher can share/refresh/bookmark without losing their place, and the
+  // back button walks through tab changes naturally.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTabState] = useState<TabKey>(
+    TABS.some((t) => t.key === initialTab) ? (initialTab as TabKey) : "overview",
+  );
+  const setTab = (next: TabKey) => {
+    setTabState(next);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", next);
+    setSearchParams(params, { replace: false });
+  };
   const [codeCopied, setCodeCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
@@ -124,7 +139,7 @@ function ExaminerExamDetailInner() {
   const missing = room === null;
 
   return (
-    <CodeVenuePage>
+    <CodeVenuePage quietBackground>
       <div className="cv-shell">
         <VenueHeader />
         <main className="cv-page-wrap">
