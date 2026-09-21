@@ -131,24 +131,19 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
             </p>
           )}
 
-          {/* ATTENTION block — the severity summary first. */}
-          <div className="cv-mon-attention">
-            <span className="k">Attention</span>
-            <span className="v">
-              {row.violationCount > 0
-                ? `${row.violationCount} ${row.violationCount === 1 ? "violation" : "violations"}`
-                : "None"}
-            </span>
-            {row.breakdown.blur > 0 && (
-              <span className="v">{row.breakdown.blur} tab switch{row.breakdown.blur === 1 ? "" : "es"}</span>
-            )}
-            {row.breakdown.paste > 0 && (
-              <span className="v">{row.breakdown.paste} paste{row.breakdown.paste === 1 ? "" : "s"}</span>
-            )}
-            {row.breakdown.copy > 0 && (
-              <span className="v">{row.breakdown.copy} cop{row.breakdown.copy === 1 ? "y" : "ies"}</span>
-            )}
-          </div>
+          {/* ATTENTION summary first — one line, sentence case. */}
+          <p className="cv-mon-attention">
+            <span className="k">Attention:</span>{" "}
+            {row.violationCount > 0
+              ? `${row.violationCount} ${row.violationCount === 1 ? "violation" : "violations"}`
+              : "None"}
+            {row.breakdown.blur > 0 &&
+              ` · ${row.breakdown.blur} tab switch${row.breakdown.blur === 1 ? "" : "es"}`}
+            {row.breakdown.paste > 0 &&
+              ` · ${row.breakdown.paste} paste${row.breakdown.paste === 1 ? "" : "s"}`}
+            {row.breakdown.copy > 0 &&
+              ` · ${row.breakdown.copy} cop${row.breakdown.copy === 1 ? "y" : "ies"}`}
+          </p>
 
           {/* RECENT ACTIVITY — compact timeline, newest first. */}
           {row.recentEvents.length > 0 ? (
@@ -171,15 +166,16 @@ const MonitoringRowItem = memo(function MonitoringRowItem({
             </p>
           )}
 
-          {/* Aggregated counters last — detail, not the headline. */}
-          <div className="cv-mon-grid">
+          {/* ACTIVITY COUNTERS — four label-over-value pairs on one quiet
+              row (no boxes). */}
+          <div className="cv-mon-counters">
             {(
               Object.keys(VIOLATION_EVENT_LABELS) as (keyof typeof VIOLATION_EVENT_LABELS)[]
             ).map((type) => (
-              <div key={type} className="cv-detail-cell">
-                <span className="k">{VIOLATION_EVENT_LABELS[type]}</span>
+              <div key={type} className="c">
                 <span className="v">{row.breakdown[type]}</span>
-            </div>
+                <span className="k">{VIOLATION_EVENT_LABELS[type]}</span>
+              </div>
             ))}
           </div>
 

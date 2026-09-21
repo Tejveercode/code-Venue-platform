@@ -125,11 +125,11 @@
 
 [data-code-venue-page] .cv-monitor-head h4 {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-sub);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-main);
 }
 
 [data-code-venue-page] .cv-monitor-limit {
@@ -163,6 +163,9 @@
   transition: border-color 0.2s ease;
 }
 
+/* Hover = one quiet border step. Never a transform, shadow, or size change —
+   rows must not move or resize under a moving cursor, and realtime pushes
+   must never fight a hover state. */
 [data-code-venue-page] .cv-mon-row:hover {
   border-color: rgba(60, 46, 36, 0.24);
 }
@@ -432,27 +435,58 @@
   background: var(--accent-caramel-rich-glow);
 }
 
-/* Attention block — the severity summary first inside an expanded row. */
+/* Attention line — one sentence-case summary, not a chip constellation. */
 [data-code-venue-page] .cv-mon-attention {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 12px;
+  gap: 4px 10px;
   margin: 0 0 10px;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 [data-code-venue-page] .cv-mon-attention .k {
   font-weight: 700;
-  color: var(--text-main);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.05em;
+  color: var(--accent-caramel-rich);
+  text-transform: none;
+  font-size: 13px;
+  letter-spacing: 0;
 }
 
 [data-code-venue-page] .cv-mon-attention .v {
   color: var(--text-main);
-  font-weight: 600;
+  font-weight: 500;
+}
+
+/* Activity counters — label-over-value pairs on ONE quiet row. No boxes,
+   no uppercase badges: the numbers are the content. */
+[data-code-venue-page] .cv-mon-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0 0 10px;
+}
+
+[data-code-venue-page] .cv-mon-counters .c {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+[data-code-venue-page] .cv-mon-counters .v {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+[data-code-venue-page] .cv-mon-counters .k {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* Compact event timeline: fixed time column + plain-language label — reads
@@ -562,6 +596,14 @@
      entrance stagger). No max-height/padding ease, no icon morph. */
   [data-code-venue-page] .cv-mobile-menu,
   [data-code-venue-page] .cv-menu-toggle svg {
+    transition: none;
+  }
+  /* The live dot stills to a static indicator — state without motion. */
+  [data-code-venue-page] .cv-live-dot {
+    animation: none;
+  }
+  /* Monitor chevrons/settle transitions go instant too. */
+  [data-code-venue-page] .cv-past-chevron {
     transition: none;
   }
 }

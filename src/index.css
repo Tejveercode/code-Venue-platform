@@ -1035,6 +1035,8 @@ code-venue-page a,
   height: 8px;
   border-radius: 50%;
   background: currentColor;
+  /* Opacity-only pulse: the dot never scales or shifts layout — a steady
+     "live" heartbeat that cannot jank or fight a realtime re-render. */
   animation: cv-pulse 1.6s ease-in-out infinite;
 }
 
@@ -1042,11 +1044,9 @@ code-venue-page a,
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.45;
-    transform: scale(0.8);
+    opacity: 0.4;
   }
 }
 
