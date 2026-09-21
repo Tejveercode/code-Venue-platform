@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { Equal, X } from "lucide-react";
 import { VoidFieldCanvas } from "./VoidFieldCanvas";
@@ -55,6 +55,8 @@ function AuthAwareActions() {
 export function VenueHeader({ actions }: { actions?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const headerRef = useRef<HTMLElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
 
   // Floating-glass-pill state: once the page scrolls past the reference's
   // 50px threshold, the header condenses into a sticky glass pill (CSS in
@@ -100,6 +102,35 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   //   row 1: .cv-logo (left) · nav (center) · .cv-auth-buttons (right)
   //   ≤860px: nav/auth collapse away; the hamburger occupies the right cell
   //   .cv-mobile-menu spans all columns on row 2 when open
+  // Mobile menu behavior — a deliberate mobile navigation system, not a
+  // collapsed desktop navbar: Escape closes (and returns focus to the
+  // toggle), a tap outside the header closes it, and opening moves focus
+  // to the first link so keyboard/switch users land in the menu.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const firstLink = headerRef.current?.querySelector<HTMLAnchorElement>(
+      "#cv-mobile-menu a.cv-nav-link",
+    );
+    const raf = requestAnimationFrame(() => firstLink?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        toggleRef.current?.focus();
+      }
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const header = headerRef.current;
+      if (header && !header.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [menuOpen]);
+
   const path = location.pathname;
   const navLinks = (
     <>
@@ -153,6 +184,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
 
   return (
     <header
+      ref={headerRef}
       className={"cv-header" + (scrolled ? " scrolled" : "")}
     >
       <Link to="/" className="cv-logo" aria-label="Code Venue home">
@@ -168,16 +200,18 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
       {/* Morphing hamburger — 21st.dev reference: the Equal icon rotates
           and fades out while the X rotates in (200ms, both icons stacked). */}
       <button
+        ref={toggleRef}
         className={"cv-menu-toggle" + (menuOpen ? " open" : "")}
         aria-label={menuOpen ? "Close menu" : "Open menu"}
         aria-expanded={menuOpen}
+        aria-controls="cv-mobile-menu"
         onClick={() => setMenuOpen((o) => !o)}
       >
         <Equal size={20} className="cv-toggle-equal" />
         <X size={20} className="cv-toggle-x" />
       </button>
       {/* Mobile dropdown menu — links first, then auth actions. */}
-      <div className={"cv-mobile-menu" + (menuOpen ? " open" : "")}>
+      <div id="cv-mobile-menu" className={"cv-mobile-menu" + (menuOpen ? " open" : "")}>
         <ul className="cv-nav-list">{navLinks}</ul>
         <div className="cv-mobile-actions">
           <AuthAwareActions />
@@ -216,12 +250,21 @@ export const CodePill = memo(function CodePill({ code }: { code: string }) {
 export const QuestionBox = memo(function QuestionBox({
   prompt,
   label = "Prompt:",
+  protected: protectedContent = false,
 }: {
   prompt: string;
   label?: string;
+  /** Copy-resistance (user-select: none) for the student exam view — the
+   *  exam's question text is the content students shouldn't casually copy.
+   *  The examiner's own overview keeps normal selection: it's their data. */
+  protected?: boolean;
 }) {
   return (
-    <div className="cv-question-box">
+    <div
+      className={
+        "cv-question-box" + (protectedContent ? " cv-question-box-protected" : "")
+      }
+    >
       <span className="cv-qb-label">{label}</span>
       <div className="cv-qb-body">{prompt}</div>
     </div>

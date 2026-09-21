@@ -151,6 +151,9 @@ export default function Exam() {
   // Editor state
   const [codeValue, setCodeValue] = useState("");
   const codeRef = useRef("");
+  // Pending dampened-save retry (server skipped a write inside its 1s
+  // min-interval). Cleared on unmount so the retry never touches a dead page.
+  const saveRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -185,6 +188,14 @@ export default function Exam() {
   useEffect(() => {
     document.title = roomState?.name ? `${roomState.name} — Code Venue` : "Exam — Code Venue";
   }, [roomState?.name]);
+
+  // Never let a pending dampened-save retry outlive the page.
+  useEffect(
+    () => () => {
+      if (saveRetryRef.current !== null) clearTimeout(saveRetryRef.current);
+    },
+    [],
+  );
 
   // Adopt the identifier (own ID if entered, else the minted UID) once the
   // submission query provides it.
@@ -223,12 +234,32 @@ export default function Exam() {
     if (!clientId || lockedRef.current) return;
     setSaving(true);
     try {
-      const res: { error?: string; locked?: boolean } = await save({
+      const res: {
+        error?: string;
+        locked?: boolean;
+        dampened?: boolean;
+      } = await save({
         clientId,
         code: codeRef.current,
         isFinal: false,
       });
       if (res.locked) return;
+      if (res.dampened) {
+        // The server skipped the write (min-interval damping) but the draft
+        // has changed since the last persisted content — keep the dirty flag
+        // AND retry just past the server's window, so the content is
+        // persisted even if the student never types again. (The debounce
+        // that scheduled this save has already fired; without the retry a
+        // dampened save could leave changed content unsaved indefinitely.)
+        setDirty(true);
+        if (saveRetryRef.current === null) {
+          saveRetryRef.current = setTimeout(() => {
+            saveRetryRef.current = null;
+            void doSave();
+          }, 1100);
+        }
+        return;
+      }
       setSavedAt(Date.now());
       setSavedClock(Date.now());
       setDirty(false);

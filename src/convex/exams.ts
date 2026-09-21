@@ -46,10 +46,17 @@ async function getCurrentExaminer(ctx: QueryCtx) {
 }
 
 function generateRoomCode(): string {
-  const digits = Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, "0");
-  return `CV-${digits}`;
+  // crypto.getRandomValues, not Math.random: room codes are the ONLY thing
+  // gating who can join a live exam (the join mutation is public). Math.random
+  // is not a CSPRNG — its output is predictable from a few observed samples,
+  // which would let an attacker predict future codes and sit in exams they
+  // were never invited to. 4 digits stay (product format "CV-####"), so the
+  // per-code join rate limit in rateLimits.ts remains the brute-force brake;
+  // the generator just stops helping an attacker guess.
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  const digits = bytes[0]! % 10000;
+  return `CV-${digits.toString().padStart(4, "0")}`;
 }
 
 /** Random 128-bit hex string (works in the Convex V8 runtime). */
@@ -785,6 +792,15 @@ export const logRejoinEvent = mutation({
     const clientId = validateClientId(args.clientId);
     const found = await requireStudentByClient(ctx, clientId);
     if (!found) return { error: "Student not found — please rejoin the room." } as const;
+    // Same silent token bucket as enforced events: page-load spam (or a
+    // scripted client hammering this public mutation) must not produce
+    // unbounded violationEvents rows. Drop, never disrupt the exam.
+    const allowed = await enforceRateLimit(ctx, "violationEventPerStudent", {
+      key: found.student._id,
+      silent: true,
+      message: "Too many events.",
+    });
+    if (!allowed) return { dropped: true } as const;
     await recordViolationEvent(ctx, found.student, found.room, "rejoin", Date.now());
     return { ok: true } as const;
   },
@@ -1082,14 +1098,17 @@ export const saveSubmission = mutation({
     if (existing && existing.isFinal) return { locked: true } as const;
     if (room.status === "CLOSED") return { locked: true } as const;
 
-    // Spam damping: at most one autosave write per second. The content is
-    // identical from the student's point of view (next keystroke re-saves);
-    // we just skip the redundant DB write.
+    // Spam damping: at most one autosave write per second. When the interval
+    // hasn't elapsed, the write is SKIPPED — report that explicitly so the
+    // client keeps its draft marked dirty and the next tick persists it.
+    // (Returning plain success here would let the client clear its dirty
+    // flag while stale content sat in the database — a real lost-update bug
+    // surfaced by the real-time integrity audit.)
     if (
       existing &&
       Date.now() - existing.updatedAt < AUTOSAVE_MIN_INTERVAL_MS
     ) {
-      return { submissionId: existing._id } as const;
+      return { submissionId: existing._id, dampened: true } as const;
     }
 
     // Rate limit autosave per student. Silent: returning an error keeps the
@@ -1171,9 +1190,12 @@ export const getRoomSubmissions = query({
         const sub = byStudent.get(student._id);
         return {
           studentId: student._id,
-          // clientId doubles as the short-ID suffix for download filenames
-          // ({name}_{ID}.txt). Owner-only query, so exposing it here is safe.
-          clientId: student.clientId,
+          // SECURITY (data minimization): clientId (the student's 128-bit
+          // session token) is deliberately NOT returned. Nothing in the
+          // grading UI uses it — download filenames use studentUid/regNo —
+          // and shipping a capability token to the browser widens the
+          // exposure of the one credential that authorizes writes to a
+          // student's submission.
           studentUid: student.studentUid,
           regNo: student.regNo ?? null,
           name: student.name,

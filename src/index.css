@@ -396,7 +396,7 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-mobile-menu.open {
   visibility: visible; /* override the closed-state inertness */
-  max-height: 320px;
+  max-height: 380px; /* headroom for the 44px touch targets below */
   padding-top: 12px;
   padding-bottom: 18px;
   opacity: 1;
@@ -406,11 +406,41 @@ code-venue-page a,
 [data-code-venue-page] .cv-mobile-menu .cv-nav-list {
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
+  gap: 2px;
 }
 
+/* Deliberate mobile nav targets, not squeezed desktop links: full-width
+   blocks, ≥44px tall (13px padding + 15px text), left-aligned labels —
+   the pattern mobile users expect from a real navigation drawer. */
 [data-code-venue-page] .cv-mobile-menu .cv-nav-link {
-  padding: 12px 14px;
+  display: block;
+  font-size: 15px;
+  padding: 13px 14px;
+}
+
+/* Staggered entrance — items settle in sequence instead of one static
+   block; the whole open transition still completes in ~0.35s. */
+@keyframes cv-menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-code-venue-page] .cv-mobile-menu.open li {
+  animation: cv-menu-item-in 0.24s var(--ease-modal) backwards;
+}
+
+[data-code-venue-page] .cv-mobile-menu.open li:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+[data-code-venue-page] .cv-mobile-menu.open li:nth-child(3) {
+  animation-delay: 0.08s;
 }
 
 [data-code-venue-page] .cv-mobile-actions {
@@ -418,6 +448,19 @@ code-venue-page a,
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
+}
+
+/* Same entrance rhythm for the auth action block (links + actions share
+   one staggered open so the menu reads as one system). */
+[data-code-venue-page] .cv-mobile-menu.open .cv-mobile-actions {
+  animation: cv-menu-item-in 0.24s var(--ease-modal) 0.1s backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .cv-mobile-menu.open li,
+  [data-code-venue-page] .cv-mobile-menu.open .cv-mobile-actions {
+    animation: none;
+  }
 }
 
 [data-code-venue-page] .cv-mobile-actions > * {
@@ -1804,6 +1847,17 @@ code-venue-page a,
   border-radius: 12px;
   background: #fffdf9;
   padding: 14px 16px;
+  /* COPY RESISTANCE - exam/question content only. This container is the
+     exam's question text; the code editor, inputs, and navigation keep
+     normal selection. Discourages casual select/copy of the exam prompt.
+     NOT a security boundary: devtools, screenshots, OCR, extensions, and
+     accessibility APIs all bypass it by design - detection (violation
+     monitoring), not prevention, is the product's integrity posture.
+     Screen readers read the DOM regardless of user-select, so this does
+     not damage AT users; keyboard focus and navigation are unaffected. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* iOS long-press callout (copy/share) */
 }
 
 [data-code-venue-page] .cv-question-box .cv-qb-label {

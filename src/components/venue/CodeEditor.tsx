@@ -336,8 +336,7 @@ export type CodeEditorProps = {
   onPaste?: () => void;
   onCopy?: () => void;
   /** Fired when focus leaves the editor surface — used to flush a pending save. */
-  onBlur?: () => void;
-  readOnly?: boolean;
+  onBlur?: () => void;  readOnly?: boolean;
   placeholder?: string;
   /** Explicit language. When omitted it is inferred from `languageHint`. */
   language?: EditorLanguage;
@@ -397,6 +396,17 @@ export function CodeEditor({
     handlers.current = { onChange, onPaste, onCopy };
   });
 
+  // Transaction annotations (transaction.userEvent) already reported as
+  // pastes. CodeMirror can apply one clipboard action as several
+  // transactions in a single update — the set keeps the same annotation
+  // object from being counted twice (each annotation object is unique per
+  // dispatch). Cleared after every render; the transaction object identity
+  // never outlives the update that contained it.
+  const reportedPasteEvents = useRef(new Set<unknown>());
+  useLayoutEffect(() => {
+    reportedPasteEvents.current.clear();
+  });
+
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -432,9 +442,37 @@ export function CodeEditor({
             autocorrect: "off",
             "aria-label": ariaLabel,
           }),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              handlers.current.onChange(update.state.doc.toString());
+              // PASTE DETECTION — the editor integration layer. CodeMirror
+              // annotates every paste transaction it applies with
+              // userEvent "input.paste" (see doPaste in @codemirror/view),
+              // which covers ALL editor-level paste paths: normal Ctrl+V,
+              // paste with an empty clipboard, and IME/keyboard clipboard
+              // inserts (notably on Android, where the EditContext path
+              // applies pastes without a DOM paste event). Detecting here
+              // instead of only on the DOM event closes the gap where a
+              // legitimate paste never reached the violation reporter.
+              //
+              // The DOM-level paste handler below stays for non-transacting
+              // clipboard scenarios (multi-paste; handlers that swallow the
+              // event before CodeMirror converts it).
+              if (update.transactions.length > 0) {
+                for (const tr of update.transactions) {
+                  if (tr.docChanged && tr.isUserEvent("input.paste") && !reportedPasteEvents.current.has(tr)) {
+                    reportedPasteEvents.current.add(tr);
+                    handlers.current.onPaste?.();
+                  }
+                }
+              }
+            }
+          }),
           EditorView.domEventHandlers({
             // Returning false lets CodeMirror and the browser handle the event
-            // normally — we only observe that it happened.
+            // normally — we only observe that it happened. The updateListener
+            // dedupes the transaction-level report this also produces when
+            // CodeMirror converts the paste into an input.paste transaction.
             paste: () => {
               handlers.current.onPaste?.();
               return false;
@@ -443,11 +481,6 @@ export function CodeEditor({
               handlers.current.onCopy?.();
               return false;
             },
-          }),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              handlers.current.onChange(update.state.doc.toString());
-            }
           }),
           placeholder ? placeholderExtension(placeholder) : [],
           // Starts as plain text; the grammar chunk is applied below as soon as

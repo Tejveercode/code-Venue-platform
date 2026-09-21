@@ -30,7 +30,6 @@ type SubmissionInfo = {
 
 type SubRowData = {
   studentId: string;
-  clientId: string;
   studentUid: string;
   regNo: string | null;
   name: string;
@@ -304,13 +303,13 @@ export function SubmissionsView({
       ) : (
         <div className="cv-sub-grid">
           <div className="cv-card cv-sub-list">
-            {rows.map((row) => (
-              <SubRow
-                key={row.studentId}
-                studentId={row.studentId}
-                name={row.name}
-                studentUid={row.studentUid}
-                regNo={row.regNo}
+          {rows.map((row) => (
+            <SubRow
+              key={row.studentId}
+              studentId={row.studentId}
+              name={row.name}
+              studentUid={row.studentUid}
+              regNo={row.regNo}
                 timeLabel={formatSubTime(
                   row.submission!.isFinal,
                   row.submission!.submittedAt,
