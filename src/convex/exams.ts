@@ -456,7 +456,13 @@ export const getRoomCounts = query({
     const roomIds = args.roomIds;
     const counts: Record<
       string,
-      { joined: number; submitted: number; flagged: number; autoSubmitted: number }
+      {
+        joined: number;
+        submitted: number;
+        flagged: number;
+        autoSubmitted: number;
+        attention: number;
+      }
     > = {};
 
     for (const roomId of roomIds) {
@@ -475,13 +481,27 @@ export const getRoomCounts = query({
       for (const s of submissions) {
         if (s.isFinal) submitted++;
       }
+      // AUTHORITATIVE "Needs Attention" definition (one source of truth for
+      // the dashboard KPI, the attention strip, exam cards, and the detail
+      // page's Monitoring badge):
+      //   attention = students with ≥1 recorded enforced violation
+      //               (violationCount > 0)
+      // flagged (zero-tolerance) and auto-submitted (over the limit) are
+      // severity levels WITHIN that set — both are only ever set while a
+      // violation is being counted, so they imply violationCount ≥ 1. The
+      // previous definition (flagged + autoSubmitted) silently excluded
+      // students under a room's warning limit, so a room whose students had
+      // live violations showed "Needs Attention: 0" while Monitoring
+      // correctly displayed the same students' counts.
       let flagged = 0;
       let autoSubmitted = 0;
+      let attention = 0;
       for (const s of students) {
         if (s.flagged === true) flagged++;
         if (s.autoSubmittedAt !== undefined) autoSubmitted++;
+        if ((s.violationCount ?? 0) > 0) attention++;
       }
-      counts[roomId] = { joined: students.length, submitted, flagged, autoSubmitted };
+      counts[roomId] = { joined: students.length, submitted, flagged, autoSubmitted, attention };
     }
     return counts;
   },
@@ -835,6 +855,18 @@ export const getRoomMonitoring = query({
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .take(room.enrolledLimit + 1);
 
+    // Final-submission state per student: one indexed read (same pattern as
+    // getRoomCounts) so a monitoring row's STATUS is server truth — a
+    // submitted/auto-submitted student reads as such instead of the UI
+    // guessing from absence of activity.
+    const submissions = await ctx.db
+      .query("submissions")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .take(room.enrolledLimit + 1);
+    const finalByStudent = new Set(
+      submissions.filter((s) => s.isFinal).map((s) => s.studentId),
+    );
+
     const events = await ctx.db
       .query("violationEvents")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
@@ -870,6 +902,7 @@ export const getRoomMonitoring = query({
         violationCount: student.violationCount ?? 0,
         flagged: student.flagged === true,
         autoSubmittedAt: student.autoSubmittedAt ?? null,
+        submitted: finalByStudent.has(student._id),
         breakdown: {
           blur: count("blur"),
           paste: count("paste"),
@@ -882,7 +915,12 @@ export const getRoomMonitoring = query({
     });
 
     return {
-      room: { violationLimit: room.violationLimit ?? 0, status: room.status },
+      room: {
+        violationLimit: room.violationLimit ?? 0,
+        status: room.status,
+        durationMinutes: room.durationMinutes,
+        startedAt: room.startedAt,
+      },
       rows,
     } as const;
   },

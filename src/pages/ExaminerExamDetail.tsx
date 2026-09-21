@@ -27,6 +27,7 @@ type Counts = {
   submitted: number;
   flagged: number;
   autoSubmitted: number;
+  attention?: number;
 };
 
 const EMPTY_COUNT: Counts = {
@@ -34,6 +35,7 @@ const EMPTY_COUNT: Counts = {
   submitted: 0,
   flagged: 0,
   autoSubmitted: 0,
+  attention: 0,
 };
 
 type TabKey = "overview" | "monitoring" | "submissions" | "settings";
@@ -191,13 +193,13 @@ function ExaminerExamDetailInner() {
                     onClick={() => setTab(t.key)}
                   >
                     {t.label}
-                    {/* Attention badge = the same population the monitoring
-                        rows highlight (flagged OR auto-submitted) and the
-                        dashboard's Needs Attention KPI counts — the two sets
-                        are disjoint, so both must be included. */}
-                    {t.key === "monitoring" && c.flagged + c.autoSubmitted > 0 && (
+                    {/* Attention badge = the server's authoritative count
+                        (getRoomCounts.attention — the same field the dashboard
+                        KPI, strip, and exam cards use). One definition, every
+                        surface. */}
+                    {t.key === "monitoring" && (c.attention ?? 0) > 0 && (
                       <span className="cv-tab-badge">
-                        ⚠ {c.flagged + c.autoSubmitted}
+                        ⚠ {c.attention}
                       </span>
                     )}
                   </button>

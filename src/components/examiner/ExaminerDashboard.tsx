@@ -21,6 +21,7 @@ const EMPTY_COUNT: RoomCounts = {
   submitted: 0,
   flagged: 0,
   autoSubmitted: 0,
+  attention: 0,
 };
 
 /** How many past exams stay visible before "Show all" (progressive disclosure —
@@ -109,15 +110,13 @@ export function ExaminerDashboard({
     0,
   );
   const activeCount = list.filter((r) => r.status === "LIVE").length;
-  // Attention total = flagged OR auto-submitted students across all rooms —
-  // the same population the attention strip warns about. The two sets are
-  // disjoint: zero-tolerance rooms flag without auto-submitting; normal
-  // rooms auto-submit without flagging — so both must be summed.
+  // Attention total = the server's authoritative per-room `attention` count
+  // (students with ≥1 recorded violation) summed across rooms — the SAME
+  // field the attention strip, exam cards, and detail-page badge use, so the
+  // KPI can never disagree with Monitoring (the previous flagged+autoSubmitted
+  // sum silently excluded students under a room's warning limit).
   const flaggedTotal = list.reduce(
-    (sum, r) =>
-      sum +
-      (counts?.[r._id]?.flagged ?? 0) +
-      (counts?.[r._id]?.autoSubmitted ?? 0),
+    (sum, r) => sum + (counts?.[r._id]?.attention ?? 0),
     0,
   );
   const avgCompletion = useMemo(() => {
@@ -141,7 +140,10 @@ export function ExaminerDashboard({
       if (room.status !== "LIVE") continue;
       const c = counts?.[room._id];
       if (!c) continue;
-      if (c.flagged > 0 || c.autoSubmitted > 0) {
+      // The server's attention population drives the strip. Severity detail
+      // (flagged / auto-submitted) is appended only when present, so the
+      // teacher reads the situation — not a threshold implementation.
+      if ((c.attention ?? 0) > 0) {
         const parts: string[] = [];
         if (c.flagged > 0)
           parts.push(
@@ -151,10 +153,11 @@ export function ExaminerDashboard({
           parts.push(
             `${c.autoSubmitted} auto-${c.autoSubmitted === 1 ? "submitted" : "submitted"}`,
           );
+        const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
         items.push({
           key: `flag-${room._id}`,
           tone: "warn",
-          text: `${room.name} — ${parts.join(" · ")}.`,
+          text: `${room.name} — ${c.attention} ${c.attention === 1 ? "student needs" : "students need"} attention${detail}.`,
         });
       }
       if (c.joined > 0 && c.joined > c.submitted) {

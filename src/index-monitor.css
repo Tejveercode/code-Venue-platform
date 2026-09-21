@@ -169,7 +169,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 9px 10px;
+  padding: 10px 10px;
   background: none;
   border: none;
   font-family: inherit;
@@ -177,6 +177,67 @@
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
+}
+
+/* Status dot — a per-state SHAPE/color cue beside the name; the state label
+   beside it carries the meaning in words (never color alone). */
+[data-code-venue-page] .cv-mon-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid #5a4c40;
+  background: transparent; /* Writing: quiet hollow dot */
+}
+[data-code-venue-page] .cv-mon-dot.cv-state-warn,
+[data-code-venue-page] .cv-mon-dot.cv-state-flag {
+  border-color: var(--accent-caramel-rich);
+  background: var(--accent-caramel-rich); /* attention: filled */
+}
+[data-code-venue-page] .cv-mon-dot.cv-state-autosub {
+  border-color: var(--accent-caramel-rich);
+  background: var(--accent-caramel-rich);
+  box-shadow: 0 0 0 3px var(--accent-caramel-rich-glow);
+}
+[data-code-venue-page] .cv-mon-dot.cv-state-sub {
+  border-color: var(--accent-caramel-deep);
+  background: var(--accent-caramel-deep);
+}
+
+[data-code-venue-page] .cv-mon-id {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+[data-code-venue-page] .cv-mon-state {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-code-venue-page] .cv-mon-state.cv-state-ok {
+  color: #5a4c40; /* 5.3:1 on cream (text-sub 4.28 fails at 10.5px) */
+}
+[data-code-venue-page] .cv-mon-state.cv-state-warn,
+[data-code-venue-page] .cv-mon-state.cv-state-flag,
+[data-code-venue-page] .cv-mon-state.cv-state-autosub {
+  color: var(--accent-caramel-rich);
+}
+[data-code-venue-page] .cv-mon-state.cv-state-sub {
+  color: var(--accent-caramel-deep);
+}
+
+/* Last-activity time in the row meta — the "when did it happen" answer
+   without expanding. */
+[data-code-venue-page] .cv-mon-last {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  white-space: nowrap;
 }
 
 [data-code-venue-page] .cv-mon-name {
@@ -298,6 +359,22 @@
     justify-content: flex-start;
     flex-wrap: wrap;
   }
+
+  /* Mobile monitoring: the summary chips wrap under the heading instead of
+     being flung to the far edge; timeline stays full-width and readable. */
+  [data-code-venue-page] .cv-monitor-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  [data-code-venue-page] .cv-monitor-summary {
+    justify-content: flex-start;
+  }
+
+  [data-code-venue-page] .cv-mon-id {
+    flex: 1;
+  }
 }
 
 [data-code-venue-page] .cv-mon-autosubmit {
@@ -307,21 +384,103 @@
   color: var(--accent-caramel-rich);
 }
 
-/* ---------- Plain-language violation events ---------- */
+/* ---------- Monitoring hierarchy: header summary + attention + timeline ---- */
 
-[data-code-venue-page] .cv-mon-events {
+/* Header summary chips — students / attention / auto-submitted / policy. */
+[data-code-venue-page] .cv-monitor-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+[data-code-venue-page] .cv-monitor-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-caramel-rich);
+}
+
+[data-code-venue-page] .cv-monitor-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5a4c40;
+  background: rgba(60, 46, 36, 0.05);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+[data-code-venue-page] .cv-monitor-chip.warn {
+  color: var(--accent-caramel-rich);
+  background: var(--accent-caramel-rich-glow);
+}
+
+/* Attention block — the severity summary first inside an expanded row. */
+[data-code-venue-page] .cv-mon-attention {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
   margin: 0 0 10px;
-  padding: 0 0 0 18px;
   font-size: 12.5px;
-  line-height: 1.8;
+}
+
+[data-code-venue-page] .cv-mon-attention .k {
+  font-weight: 700;
+  color: var(--text-main);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+[data-code-venue-page] .cv-mon-attention .v {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Compact event timeline: fixed time column + plain-language label — reads
+   as a list, never as a dense paragraph. */
+[data-code-venue-page] .cv-mon-timeline {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--surface-border);
+}
+
+[data-code-venue-page] .cv-mon-timeline li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--surface-border);
+  font-size: 12.5px;
   color: var(--text-main);
 }
 
-[data-code-venue-page] .cv-mon-events li.more {
-  list-style: none;
-  margin-left: -18px;
+[data-code-venue-page] .cv-mon-timeline li.more {
+  color: var(--text-sub);
+  border-bottom: none;
+}
+
+[data-code-venue-page] .cv-mon-t-time {
+  flex: none;
+  width: 62px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   color: var(--text-sub);
 }
+
+[data-code-venue-page] .cv-mon-t-label {
+  min-width: 0;
+}
+
+/* ---------- Plain-language violation events (empty-state text retained) ---- */
 
 [data-code-venue-page] .cv-mon-events-empty {
   margin: 0 0 10px;

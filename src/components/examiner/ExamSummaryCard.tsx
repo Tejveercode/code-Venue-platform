@@ -22,6 +22,10 @@ export type RoomCounts = {
   submitted: number;
   flagged: number;
   autoSubmitted: number;
+  /** Students with ≥1 recorded violation — the server's single "Needs
+   *  Attention" definition (getRoomCounts computes it; never recomputed
+   *  client-side). Optional for tolerance across a convex-codegen boundary. */
+  attention?: number;
 };
 
 /**
@@ -48,7 +52,11 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
     room.enrolledLimit > 0
       ? Math.round((c.submitted / room.enrolledLimit) * 100)
       : 0;
-  const needsAttention = c.flagged > 0 || c.autoSubmitted > 0;
+  // Server-derived attention set; falls back to the two severity fields only
+  // if a stale codegen boundary omits `attention` (defensive, not a second
+  // definition — the server field is the one source of truth).
+  const needsAttention =
+    (c.attention ?? c.flagged + c.autoSubmitted) > 0;
   // Minute-level clock so a LIVE card's "Ends in N min" actually counts down
   // while the dashboard is open (the card re-renders on every live count
   // update, but between updates the label would otherwise freeze at the
@@ -102,6 +110,16 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           <span className="cv-exam-metric">
             <strong>{c.submitted}</strong> submitted
           </span>
+          {/* The room's attention population, from the same server field the
+              dashboard KPI uses. Severity detail (flagged/auto-submitted)
+              appears only when present, inside the attention context. */}
+          {(c.attention ?? 0) > 0 ? (
+            <span className="cv-exam-metric cv-exam-metric-warn">
+              ⚠ {c.attention} need{c.attention === 1 ? "s" : ""} attention
+            </span>
+          ) : (
+            <span className="cv-exam-metric cv-exam-metric-quiet">No flags</span>
+          )}
           {c.flagged > 0 && (
             <span className="cv-exam-metric cv-exam-metric-warn">
               ⚠ {c.flagged} flagged
@@ -110,11 +128,6 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
           {c.autoSubmitted > 0 && (
             <span className="cv-exam-metric cv-exam-metric-warn">
               ⚠ {c.autoSubmitted} auto-submitted
-            </span>
-          )}
-          {c.flagged === 0 && c.autoSubmitted === 0 && (
-            <span className="cv-exam-metric cv-exam-metric-quiet">
-              No flags
             </span>
           )}
           <span className="cv-exam-metric">{timeContext}</span>
