@@ -132,6 +132,15 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   }, [menuOpen]);
 
   const path = location.pathname;
+  // Shared between the desktop nav and the mobile menu. On link activation
+  // while the mobile menu is open, move focus to the toggle BEFORE the route
+  // change unmounts the link — otherwise keyboard focus falls to <body> and
+  // the user is stranded (route-change close unmounts the focused element).
+  // No-op on desktop (menu never open) and invisible for mouse users (focus
+  // ring is :focus-visible only).
+  const keepFocusThroughNavigation = () => {
+    if (menuOpen) toggleRef.current?.focus();
+  };
   const navLinks = (
     <>
       <li>
@@ -139,6 +148,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
           className={"cv-nav-link" + (path.startsWith("/about") ? " active" : "")}
           to="/about"
           aria-current={path.startsWith("/about") ? "page" : undefined}
+          onClick={keepFocusThroughNavigation}
         >
           About
         </Link>
@@ -157,6 +167,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
               ? "page"
               : undefined
           }
+          onClick={keepFocusThroughNavigation}
         >
           For Teachers
         </Link>
@@ -175,6 +186,7 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
               ? "page"
               : undefined
           }
+          onClick={keepFocusThroughNavigation}
         >
           Student
         </Link>

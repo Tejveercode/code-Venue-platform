@@ -2,6 +2,8 @@
 
 **Date:** September 21, 2026 · **Scope:** full repository · **Method:** SCAN → MAP → FIND → FIX → TEST → RE-SCAN → REPORT
 
+**Second-pass re-verification (same day):** every SEC fix below was independently re-tested against the live code (grep of the actual implementation, not the prior report's claims) — all seven confirmed genuinely present and correct. The re-verification **did find one real defect in the prior paste fix** (double-reporting; see SEC-1's updated verification) plus a mobile-menu focus gap; both were fixed in this pass.
+
 All fixes were applied in the same pass and re-verified with the repository's own validation chain (`bun convex dev --once`, `bun tsc -b --noEmit`, `bun run build`, `bun run lint`, `npm audit`). No browser interaction is available in this environment; wherever that matters it is stated explicitly.
 
 ---
@@ -173,8 +175,9 @@ Architecture note: all examiner views are **Convex reactive subscriptions** — 
 - **Editor:** CodeMirror 6 (`@codemirror/view` 6.43.12).
 - **Previous mechanism:** `EditorView.domEventHandlers({ paste, copy })` only.
 - **Root cause:** DOM `paste` is not emitted on all editor-level paste paths (keyboard/IME clipboard insertion; Android `EditContext` in this CM version applies pastes without a DOM paste event). A legitimate paste inside the editor therefore never reached the violation reporter.
-- **Fix:** detection moved to the editor integration layer — the `updateListener` now checks each transaction's `userEvent` annotation (`tr.isUserEvent("input.paste")`), the annotation CodeMirror itself assigns to every paste it applies. The DOM hook remains as a secondary net; a transaction-identity set dedupes the two layers.
-- **Duplicate-event protection:** per-update transaction-identity set (each annotation object is unique per dispatch); cleared per render so the set cannot grow unbounded.
+- **Fix:** detection moved to the editor integration layer — the `updateListener` checks each transaction's `userEvent` annotation (`tr.isUserEvent("input.paste")`), the annotation CodeMirror itself assigns to every paste it applies.
+- **Verification (updated by second pass):** the first implementation had a **real double-reporting defect**: the DOM paste handler ran synchronously (user handlers dispatch before CodeMirror's internal conversion) and reported immediately, then the updateListener reported the resulting `input.paste` transaction again — the transaction-identity set only deduped *within* the transaction layer, so every normal Ctrl+V counted as **two violations** (double warning consumption; instant flag in zero-tolerance rooms). Re-verified by tracing `computeHandlers` ordering (index.js:4702 — user handlers precede internal) and `doPaste`'s transaction annotation. Final architecture: the transaction layer is the primary reporter (it covers all paste paths); the DOM handler now defers its decision by a macrotask and reports **only if** no paste transaction materialized (event swallowed before conversion) — exactly one report per physical paste, whichever layer saw it.
+- **Duplicate-event protection (final):** per-update transaction-identity set (dedupes multi-transaction pastes) + a synchronous `pasteTxJustReported` flag consumed by the deferred DOM check (dedupes across the two layers). Normal typing never matches: typing is annotated `input.type[.compose]` (index.js:4423), which no layer treats as paste.
 - **Normal typing excluded:** verified — normal typing is annotated `input.type[.compose]` (index.js:4423), which never matches; only genuine paste transactions (and the DOM event where no transaction results) report.
 - **Editor functionality:** handlers return `false`/observe-only — pastes still work exactly as before; nothing is blocked or prevented.
 - **Database verification:** `logViolationEvent` writes `violationEvents(type:"paste")` and increments the server tally; rate limit is silent-drop, so monitoring never breaks the exam.
@@ -197,6 +200,7 @@ Architecture note: all examiner views are **Convex reactive subscriptions** — 
 **Fixes (all consistent with the venue's warm design tokens; no dark/gloomy restyle):**
 - Escape closes and returns focus to the toggle; `pointerdown` outside the header closes; both listeners are scoped to `menuOpen` and self-clean.
 - Opening focuses the first nav link (next frame, post-transition); closing returns focus to the toggle.
+- **(Second pass)** Link activation while the menu is open now moves focus to the toggle *before* the route change unmounts the link — previously, keyboard focus fell to `<body>` after navigating from the menu (the focused element was unmounted), stranding keyboard users. No-op on desktop; invisible for mouse users (`:focus-visible`-gated ring).
 - `aria-controls="cv-mobile-menu"` added; `aria-expanded` labels were already correct.
 - Touch targets raised to ≥44px (13px vertical padding at 15px font, full-width blocks) while keeping the existing paddings/colors; open-state headroom (`max-height`) raised accordingly.
 - Subtle staggered entrance (three links, then actions; 0.24s each, 40ms offsets) using the existing `--ease-modal` curve, with a `prefers-reduced-motion` guard. The route-change auto-close (render-phase, no extra pass) was already present and untouched.
@@ -223,12 +227,12 @@ Architecture note: all examiner views are **Convex reactive subscriptions** — 
 | Command | Result |
 |---|---|
 | `bun convex dev --once` | **PASS** — functions generated and pushed twice (after backend edits, after rate-limit edit), no schema/type errors |
-| `bun tsc -b --noEmit` | **PASS** — run after every fix batch (3× total) |
-| `bun run build` | **PASS** — 13.7s / 14.8s, clean chunks, no warnings |
+| `bun tsc -b --noEmit` | **PASS** — run after every fix batch (7× total across both passes) |
+| `bun run build` | **PASS** — 13.7s / 14.8s / 13.6s, clean chunks, no warnings |
 | `bun run lint` | 7 errors / 21 warnings — **all pre-existing and previously documented**: 2 intentional `Exam.tsx` server-subscription sync effects (business-critical, preserved per standing directive), 2 async-callback `Date.now` reads in `Exam.tsx` (`doSave`/`doSubmit` timestamps, not render-time), 3 stock shadcn/template files. **Zero errors from this pass's changes** (verified by diffing the pre-existing list). |
 | `npm audit --omit=dev` / `npm audit` | **0 vulnerabilities** (after SEC-7 lockfile regeneration) |
 | CSS integrity | `index.css` 432/432 braces, `index-monitor.css` 113/113 |
-| On-disk fix verification | grep-confirmed for all 10 fix sites |
+| On-disk fix verification | grep-confirmed for all 10 fix sites, then re-verified independently in the second pass (every SEC-1…SEC-7 fix confirmed present and correct in the live code; one defect *within* the SEC-1 fix itself — double-reporting — was found and fixed) |
 | Browser runtime / live real-time round-trip | **Not performed — no browser interaction available in this environment** (no automation tool; starting/interacting with the managed dev server from the terminal is prohibited) |
 
 Regression coverage: the repository has no test runner configured (`package.json` has no `test` script), so "regression tests" in the requested sense could not be added without introducing a new testing dependency/framework — out of scope for a smallest-change security pass. The data-flow contracts are documented as the §4 matrix instead, and each fix is behavior-verified via codegen/typecheck/build.
@@ -266,7 +270,7 @@ Regression coverage: the repository has no test runner configured (`package.json
 
 **Verified:** server-side authorization on every sensitive operation (ownership + capability model); strict server-side validation with size caps on all inputs; rate limiting on every public mutation including the previously unguarded rejoin path; CSPRNG join codes; no secret tokens in examiner responses; error hygiene with no stack/internal leakage; XSS-safe rendering and filename sanitization; idempotent, transactional enforcement (auto-submit/submit/end); end-to-end reactive data paths for all 18 monitored actions (no polling, no stale derived state found); a11y/responsive states of the touched components.
 
-**Fixed in this pass:** SEC-1 … SEC-7 as detailed, plus the monitoring-tab badge consistency fix and the mobile navigation dismissal/focus/touch-target upgrade.
+**Fixed in the second pass:** the double-reporting defect inside the SEC-1 paste fix (every normal paste counted twice — verified by tracing CodeMirror's handler ordering and fixed with a deferred cross-layer dedupe); mobile-menu focus-stranding after link navigation; exam cards now show the actionable time context for a teacher ("Ends in N min" / "Time expired" / "Ended …") instead of "Started N min ago".
 
 **Could not be tested here:** live browser behavior — actual paste detection through the full stack, autosave parity on a real device, mobile menu gestures, and socket-level real-time latency all require a hands-on session (list in §9).
 

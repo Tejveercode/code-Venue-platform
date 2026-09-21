@@ -403,6 +403,10 @@ export function CodeEditor({
   // dispatch). Cleared after every render; the transaction object identity
   // never outlives the update that contained it.
   const reportedPasteEvents = useRef(new Set<unknown>());
+  // Flag set whenever a paste transaction was just reported, consumed by the
+  // DOM paste handler's deferred check (see below) so the two detection
+  // layers can never double-report the same physical paste.
+  const pasteTxJustReported = useRef(false);
   useLayoutEffect(() => {
     reportedPasteEvents.current.clear();
   });
@@ -462,6 +466,7 @@ export function CodeEditor({
                 for (const tr of update.transactions) {
                   if (tr.docChanged && tr.isUserEvent("input.paste") && !reportedPasteEvents.current.has(tr)) {
                     reportedPasteEvents.current.add(tr);
+                    pasteTxJustReported.current = true;
                     handlers.current.onPaste?.();
                   }
                 }
@@ -469,12 +474,24 @@ export function CodeEditor({
             }
           }),
           EditorView.domEventHandlers({
-            // Returning false lets CodeMirror and the browser handle the event
-            // normally — we only observe that it happened. The updateListener
-            // dedupes the transaction-level report this also produces when
-            // CodeMirror converts the paste into an input.paste transaction.
+            // The DOM paste event fires BEFORE CodeMirror's internal handler
+            // converts the paste into an input.paste transaction, so calling
+            // onPaste here would double-report every normal paste (the
+            // updateListener reports the transaction too). Instead, defer the
+            // DOM-level decision by a macrotask: if the transaction layer
+            // already reported this paste (the flag is set synchronously
+            // during the same event's dispatch), skip; only pastes that
+            // produced NO transaction (event swallowed before conversion,
+            // exotic paths) are reported from here. Net result: exactly one
+            // violation report per physical paste, whichever layer saw it.
             paste: () => {
-              handlers.current.onPaste?.();
+              setTimeout(() => {
+                if (pasteTxJustReported.current) {
+                  pasteTxJustReported.current = false;
+                  return;
+                }
+                handlers.current.onPaste?.();
+              }, 0);
               return false;
             },
             copy: () => {

@@ -53,8 +53,20 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
   // granularity is plenty for a scan surface; the label refreshes whenever
   // the card re-renders on live counts/status changes.
   const [now] = useState(() => Date.now());
-  const startedAt =
-    room.status === "LIVE" ? room.startedAt : (room.endedAt ?? room.startedAt);
+  // Time context — the actionable fact for each state: a live exam's ends-at
+  // is when the teacher wraps up (also surfaces "Time expired" when the
+  // window has passed but the room isn't closed yet — students' late submits
+  // are being flagged); a past exam's is when it ended.
+  const timeContext =
+    room.status === "LIVE"
+      ? (() => {
+          const endsAt = room.startedAt + room.durationMinutes * 60_000;
+          const minsLeft = Math.ceil((endsAt - now) / 60_000);
+          if (minsLeft > 90)
+            return `Ends in ${Math.round(minsLeft / 60)} hr`;
+          return minsLeft > 0 ? `Ends in ${minsLeft} min` : "Time expired";
+        })()
+      : `Ended ${relTime(room.endedAt ?? room.startedAt, now)}`;
 
   return (
     <div
@@ -97,9 +109,7 @@ export const ExamSummaryCard = memo(function ExamSummaryCard({
               No flags
             </span>
           )}
-          <span className="cv-exam-metric">
-            {room.status === "LIVE" ? "Started" : "Ended"} {relTime(startedAt, now)}
-          </span>
+          <span className="cv-exam-metric">{timeContext}</span>
         </div>
 
         {/* Submission progress — one thin bar; the percentage travels with
