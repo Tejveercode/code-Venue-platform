@@ -279,8 +279,95 @@ code-venue-page a,
 }
 
 /* Scrolled state - the floating glass pill appears (via ::before above).
-   ONLY opacity changes here: the header box, its height, and the page flow
-   are untouched, so scrolling can never move content. */
+   ONLY compositor properties animate here - opacity on the pill layer and a
+   gentle lift (translateY, zero layout impact) on the header CONTENT. The
+   header box itself (height, padding, width, margins) is identical in both
+   states, so the page flow can never move: this is the scroll-stability
+   contract, preserved exactly.
+
+   NAVBAR ANIMATION (restored): before the stability fix the header visibly
+   condensed when scrolled. That ran on layout properties and was removed to
+   kill the flutter. The animation is rebuilt here WITHOUT layout: the pill
+   still fades in on scroll, and the logo/nav/auth row eases up 2px (plus a
+   1px drop shadow on the logo) so the bar reads as settling into place.
+   translateY on promoted layers + opacity = compositor work only; no React
+   re-render beyond the two threshold crossings (see ui.tsx hysteresis), no
+   document-height change, no reflow. Content never shifts horizontally or
+   vertically - the transform is inside the header's own stable box. */
+[data-code-venue-page] .cv-header.scrolled::before {
+  opacity: 1;
+}
+
+[data-code-venue-page] .cv-header > * {
+  transition: transform 0.3s var(--ease-modal);
+}
+
+[data-code-venue-page] .cv-header > .cv-logo {
+  transition: transform 0.3s var(--ease-modal), text-shadow 0.3s var(--ease-modal);
+}
+
+[data-code-venue-page] .cv-header.scrolled > .cv-logo,
+[data-code-venue-page] .cv-header.scrolled > .cv-nav,
+[data-code-venue-page] .cv-header.scrolled > .cv-auth-buttons,
+[data-code-venue-page] .cv-header.scrolled > .cv-menu-toggle {
+  transform: translateY(-2px);
+}
+
+[data-code-venue-page] .cv-header.scrolled > .cv-logo {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-code-venue-page] .cv-header > * {
+    transition: none;
+  }
+  [data-code-venue-page] .cv-header.scrolled > .cv-logo,
+  [data-code-venue-page] .cv-header.scrolled > .cv-nav,
+  [data-code-venue-page] .cv-header.scrolled > .cv-auth-buttons,
+  [data-code-venue-page] .cv-header.scrolled > .cv-menu-toggle {
+    transform: none;
+  }
+  /* The pill still appears on scroll (state clarity), just without the
+     animated fade. */
+  [data-code-venue-page] .cv-header::before {
+    transition: none;
+  }
+}
+
+/* ---------- Navbar alignment - one flex system, one vertical center -------
+
+   Every header row child is an equal-height (44px) flex cell that centers
+   its own content on the SAME axis. No absolute positioning, no margin/
+   padding nudges, no baseline hacks anywhere - vertical alignment falls out
+   of the boxes themselves.
+
+   Why 44px: it is the tallest child (.cv-btn-sm min-height 40px + focus
+   outline breathing room) and a comfortable ≥44px touch target, so links and
+   buttons share one true center instead of boxes of differing heights. */
+
+/* Nav links: same box model as the auth buttons (min-height 44, centered
+   flex) so "About / For Teachers / Student" sit on the button's exact
+   vertical center, not merely near it. */
+[data-code-venue-page] .cv-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Right track: the auth wrapper FILLS its grid cell and distributes its
+   children to the far edge, so "Examiner Sign In" / "Examiner Portal" ends
+   flush with the content axis (the grid's 1fr track only guarantees the
+   cell width; without this the buttons hugged the center nav). */
+[data-code-venue-page] .cv-auth-buttons {
+  height: 44px;
+  justify-content: flex-end;
+}
+
+/* Left track mirrors the right: cell-sized, content left-aligned, so the
+   logo shares the same 44px axis too. */
+[data-code-venue-page] .cv-logo {
+  height: 44px;
+}
 
 [data-code-venue-page] .cv-logo {
   font-size: 22px;
@@ -392,6 +479,10 @@ code-venue-page a,
   padding-bottom: 18px;
   opacity: 1;
   border-bottom: 1px solid var(--surface-border);
+  /* The open menu's own vertical slide must not inherit the scrolled-state
+     content transition (the header > * rule animates transforms only, but an
+     inherited transition on max-height/opacity would make the drawer lag). */
+  transform: none;
 }
 
 [data-code-venue-page] .cv-mobile-menu .cv-nav-list {
