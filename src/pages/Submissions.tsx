@@ -12,13 +12,15 @@ import { ArrowLeft, Download, FileCode2, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   defaultZipName,
   downloadBlob,
+  exportUrl,
   loadZipLib,
   sanitizeFilename,
-  submissionFileName,
+  submissionFolderName,
 } from "@/lib/submissionFiles";
 
 type SubmissionInfo = {
@@ -88,8 +90,8 @@ const SubRow = memo(function SubRow({
       {downloadable && (
         <button
           className="cv-sub-download"
-          title={`Download ${name}'s PDF submission record (${name}_${displayId}.pdf)`}
-          aria-label={`Download ${name}'s PDF submission record`}
+          title={`Download ${name}'s submission file`}
+          aria-label={`Download ${name}'s submission file`}
           onClick={() => onDownload(studentId)}
         >
           <Download size={14} />
@@ -125,18 +127,23 @@ const CodeView = memo(function CodeView({
 });
 
 /**
- * The full grading workflow for one room: student list + code viewer + PDF
- * downloads. Self-contained (owns its query, selection, and modal state) so
- * it can render standalone at /submissions/:roomId OR embedded inside the
- * exam detail page's Submissions tab — one implementation, never duplicated.
+ * The examiner's review surface for one room: read-only code viewer +
+ * original-file downloads. Self-contained (owns its query, selection, and
+ * modal state) so it can render standalone at /submissions/:roomId OR
+ * embedded inside the exam detail page's Submissions tab — one
+ * implementation, never duplicated. This page only ever VIEWS submissions
+ * (no editing, no grading, no feedback anywhere).
  *
- * EXPORT SECURITY MODEL: documents are generated SERVER-SIDE from the
+ * DOWNLOAD SECURITY MODEL: files are served SERVER-SIDE from the
  * authoritative stored submission. This page never builds files from query
  * data; it requests short-lived, single-use export tickets from the server
- * (which owner-checks every room+student pair) and downloads the PDFs from
- * the /export/submission route, which re-authenticates the examiner session
- * before the internal action generates bytes. A student can neither mint a
- * ticket nor reach the route's generator — nothing to spoof client-side.
+ * (which owner-checks every room+student pair AND computes each file's
+ * name), then fetches /export/submission on the CONVEX deployment host with
+ * the examiner's JWT in an Authorization header. The route re-authenticates
+ * the session, the ticket is consumed single-use, and the internal action
+ * re-verifies ownership before returning the submission's ORIGINAL bytes.
+ * A student can neither mint a ticket nor reach the route — nothing to
+ * spoof client-side, and swapping IDs in a URL yields a 404.
  */
 export function SubmissionsView({
   roomId,
@@ -155,6 +162,10 @@ export function SubmissionsView({
     | undefined;
 
   const requestTickets = useMutation(api.exams.requestSubmissionExportTickets);
+  // The examiner's Convex Auth JWT — forwarded as `Authorization: Bearer` to
+  // the /export/submission HTTP route, which re-authenticates the session
+  // server-side (a bare navigation sends no header and gets a deliberate 404).
+  const authToken = useAuthToken();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -185,15 +196,16 @@ export function SubmissionsView({
   // regardless of room status (LIVE or CLOSED; the server applies no status
   // filter either). This is the single source of truth for BOTH the ZIP and
   // the per-student download buttons, so the two flows can never diverge.
-  // Draft files are marked with a "-draft" filename suffix inside the ZIP so
-  // the examiner can tell unfinished work from final submissions.
+  // Drafts are marked with a "-draft" filename suffix (computed SERVER-side
+  // with the ticket, so the marker cannot be spoofed or drift) so the
+  // examiner can tell unfinished work from final submissions.
   const downloadRows = useMemo(
     () => rows.filter((r) => r.submission !== null),
     [rows],
   );
 
-  // How many of the downloadable rows are final (grading-focused count for
-  // the header sentence and the ZIP modal).
+  // How many of the downloadable rows are final (for the header sentence
+  // and the ZIP modal).
   const finalCount = useMemo(
     () => downloadRows.filter((r) => r.submission?.isFinal === true).length,
     [downloadRows],
@@ -214,7 +226,10 @@ export function SubmissionsView({
     setZipOpen(true);
   }, [room]);
 
-  /** One PDF: ticket (server owner-check) → authenticated download route. */
+  /** One ORIGINAL file: ticket (server owner-check) → authenticated download route. */
+  /** One ORIGINAL file: ticket (server owner-check) → authenticated fetch.
+   *  The response is saved as a Blob with the SERVER-COMPUTED filename —
+   *  never a navigation, so a wrong origin can no longer 404 the page. */
   const downloadOne = useCallback(
     async (studentId: string) => {
       const r = rows.find((x) => x.studentId === studentId);
@@ -224,14 +239,18 @@ export function SubmissionsView({
         const { tickets } = await requestTickets({
           requests: [{ roomId, studentId: studentId as Id<"students"> }],
         });
-        const ticket = tickets[0]?.ticket;
-        if (!ticket) throw new Error("no ticket");
-        const fname = submissionFileName(r.name, r.studentUid, r.regNo);
-        // Browser handles the download via Content-Disposition; the route
-        // re-authenticates the session and consumes the ticket single-use.
-        window.location.assign(
-          `/export/submission?ticket=${encodeURIComponent(ticket)}&filename=${encodeURIComponent(fname)}`,
-        );
+        const t = tickets[0];
+        if (!t?.ticket) throw new Error("no ticket");
+        // Absolute Convex-site URL + JWT header; the route re-authenticates,
+        // consumes the ticket single-use, and re-verifies ownership before
+        // returning the submission's original bytes.
+        const { url, init } = exportUrl(t.ticket, authToken);
+        const res = await fetch(url, init);
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        // The filename comes from the server (t.filename), computed from the
+        // authoritative rows — the client never decides what the file is called.
+        downloadBlob(blob, t.filename);
       } catch (err) {
         setExportError(
           err instanceof Error && err.message.includes("no ticket")
@@ -240,7 +259,7 @@ export function SubmissionsView({
         );
       }
     },
-    [rows, roomId, requestTickets],
+    [rows, roomId, requestTickets, authToken],
   );
 
   const confirmZip = useCallback(async () => {
@@ -249,7 +268,8 @@ export function SubmissionsView({
     setExportError(null);
     try {
       // 1) Server authorizes the WHOLE batch in one mutation (every
-      //    room+student pair owner-checked; tickets expire in 90s).
+      //    room+student pair owner-checked; tickets expire in 90s; each
+      //    ticket carries the server-computed filename).
       const { tickets } = await requestTickets({
         requests: downloadRows.map((r) => ({
           roomId,
@@ -257,36 +277,39 @@ export function SubmissionsView({
         })),
       });
       const byStudent = new Map(
-        tickets.map((t) => [t.studentId as string, t.ticket as string]),
+        tickets.map((t) => [t.studentId as string, t]),
       );
 
       // 2) Build the archive from the route (which re-authenticates and
-      //    generates each PDF from the authoritative record). A failed file
-      //    is skipped, not fatal — the examiner sees what was included.
+      //    returns each submission's ORIGINAL bytes). A failed file is
+      //    skipped, not fatal — the examiner sees what was included.
+      //
+      //    STRUCTURE: {roomName}/{studentID-Name}/{file}.txt — one folder per
+      //    student (their own ID, so same-named students never collide), the
+      //    file named from the server. Folders nest under the exam name.
       const { default: JSZip } = await loadZipLib();
       const zip = new JSZip();
+      const examFolder = safeZipBase.replace(/-submissions$/, "") || "exam";
       const used = new Set<string>();
       let failed = 0;
       for (const r of downloadRows) {
-        const ticket = byStudent.get(r.studentId);
-        if (!ticket) {
+        const t = byStudent.get(r.studentId);
+        if (!t?.ticket) {
           failed += 1;
           continue;
         }
-        let fname = submissionFileName(r.name, r.studentUid, r.regNo);
-        if (!r.submission?.isFinal) {
-          fname = fname.replace(/\.pdf$/, "-draft.pdf");
-        }
-        // Belt-and-braces against duplicate names inside the archive.
+        const folder = `${examFolder}/${submissionFolderName(r.name, r.studentUid, r.regNo)}`;
+        let fname = t.filename;
+        // Belt-and-braces against duplicate paths inside the archive.
         let n = 2;
-        while (used.has(fname)) fname = fname.replace(/\.pdf$/, `-${n++}.pdf`);
-        used.add(fname);
+        while (used.has(`${folder}/${fname}`))
+          fname = fname.replace(/(\.txt)?$/, `-${n++}.txt`);
+        used.add(`${folder}/${fname}`);
         try {
-          const res = await fetch(
-            `/export/submission?ticket=${encodeURIComponent(ticket)}&filename=${encodeURIComponent(fname)}`,
-          );
+          const { url, init } = exportUrl(t.ticket, authToken);
+          const res = await fetch(url, init);
           if (!res.ok) throw new Error(String(res.status));
-          zip.file(fname, await res.arrayBuffer());
+          zip.file(`${folder}/${fname}`, await res.arrayBuffer());
         } catch {
           failed += 1;
         }
@@ -302,7 +325,7 @@ export function SubmissionsView({
       setZipOpen(false);
       if (failed > 0) {
         setExportError(
-          `${used.size} of ${downloadRows.length} PDFs were included — ${failed} could not be generated. Reopen the modal to retry.`,
+          `${used.size} of ${downloadRows.length} submission files were included — ${failed} could not be downloaded. Reopen the modal to retry.`,
         );
       }
     } catch {
@@ -312,7 +335,7 @@ export function SubmissionsView({
     } finally {
       setZipping(false);
     }
-  }, [downloadRows, safeZipBase, roomId, requestTickets]);
+  }, [downloadRows, safeZipBase, roomId, requestTickets, authToken]);
 
   return (
     <>
@@ -350,7 +373,7 @@ export function SubmissionsView({
             className="cv-btn cv-btn-secondary cv-btn-sm"
             onClick={openZipModal}
           >
-            <Download size={14} /> Download All (PDF ZIP)
+            <Download size={14} /> Download All (ZIP)
           </button>
         )}
       </div>
@@ -419,7 +442,7 @@ export function SubmissionsView({
         title="Download all submissions"
         subtitle={
           downloadRows.length === finalCount
-            ? `${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} will be included as server-generated PDF records.`
+            ? `${finalCount} final ${finalCount === 1 ? "submission" : "submissions"} will be included as original files.`
             : finalCount === 0
               ? `${downloadRows.length} draft ${downloadRows.length === 1 ? "submission" : "submissions"} will be included, marked as drafts in the ZIP.`
               : `${finalCount} final and ${downloadRows.length - finalCount} draft ${downloadRows.length - finalCount === 1 ? "submission" : "submissions"} will be included. Drafts are marked in their filenames.`
@@ -465,9 +488,9 @@ export function SubmissionsView({
             autoFocus
           />
           <p className="cv-modal-sub" style={{ marginTop: 8, marginBottom: 0 }}>
-            Saved as <strong>{safeZipBase}.zip</strong> — one branded PDF
-            record per student ({`{name}_${"{ID}"}`}.pdf, e.g.
-            Akash_24BCA10210.pdf), generated from the stored submissions.
+            Saved as <strong>{safeZipBase}.zip</strong> — the students'
+            original submission files, one folder per student (e.g.
+            {"{exam}/24BCA10210-Akash/…"}), exactly as stored.
           </p>
         </div>
       </Modal>

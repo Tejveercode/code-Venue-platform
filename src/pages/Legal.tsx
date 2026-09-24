@@ -234,7 +234,7 @@ export function TermsOfService() {
           Work autosaves as the student types, and final submission locks the
           attempt. Submissions persist until the examiner deletes the room.
           The examiner's database record is the authoritative submission; any
-          downloaded document (PDF export) is a readable representation of it.
+          downloaded file is a copy of it.
         </p>
       </Section>
       <Section title="4. Acceptable use">

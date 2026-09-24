@@ -186,7 +186,7 @@ function ExaminerExamDetailInner() {
                     className="cv-btn cv-btn-primary"
                     onClick={() => navigate(`/submissions/${room._id}`)}
                   >
-                    Grade Submissions <ChevronRight size={15} />
+                    View Submissions <ChevronRight size={15} />
                   </button>
                 </div>
               </div>

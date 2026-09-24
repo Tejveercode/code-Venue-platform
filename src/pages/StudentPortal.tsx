@@ -220,7 +220,7 @@ export default function StudentPortal() {
               </p>
               <p>
                 <span className="cv-guide-num" aria-hidden="true">3</span>
-                <span>Your examiner downloads your work as a <strong>PDF record</strong> named with your ID.</span>
+                <span>Your examiner can download your work, named with your ID.</span>
               </p>
             </div>
           </div>

@@ -200,12 +200,13 @@ const schema = defineSchema(
       at: v.number(),
     }).index("by_event", ["event"]),
 
-    // ---- Submission export (server-generated PDF) ----------------------------
+    // ---- Submission export (original file, server-authorized) ----------------
     // A ONE-TIME, 90-second ticket binding (examiner, room, student) to a
     // SHA-256 hash of a random token. The ticket itself is never stored —
     // only its hash — so a database snapshot cannot mint export URLs. The
-    // PDF action re-verifies ownership and submission existence at generate
-    // time; a consumed ticket is deleted before generation (single use).
+    // export action re-verifies ownership and submission existence at
+    // download time; a consumed ticket is deleted before generation (single
+    // use).
     exportTickets: defineTable({
       ticketHash: v.string(), // SHA-256 hex of the opaque ticket
       examinerId: v.id("examiners"), // re-verified by the generator
