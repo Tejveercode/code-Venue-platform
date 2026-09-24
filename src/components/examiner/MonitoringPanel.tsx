@@ -59,12 +59,21 @@ function lastActivityAt(row: MonitoringRow): number | null {
   return row.recentEvents[0].at; // recentEvents is newest-first (server-sorted)
 }
 
-/** One student's monitoring card. Expands to the compact event timeline. */
-const MonitoringRowItem = memo(function MonitoringRowItem({
-  row,
-}: {
-  row: MonitoringRow;
-}) {
+/**
+ * One student's monitoring card. Expands to the compact event timeline.
+ *
+ * PERF: the live query re-serializes ALL rows on every push (any student's
+ * event, join, or submission), so default shallow memo would re-render every
+ * card on every update. This comparator re-renders only rows whose OWN data
+ * changed — one student's violation updates exactly one card; expanded
+ * state, scroll position, and the other rows never move.
+ */
+const MonitoringRowItem = memo(
+  function MonitoringRowItem({
+    row,
+  }: {
+    row: MonitoringRow;
+  }) {
   const [expanded, setExpanded] = useState(false);
   const state = studentState(row);
   const attention = row.violationCount > 0;
