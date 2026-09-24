@@ -2,16 +2,21 @@
  * Submission download helpers (examiner side).
  *
  * Naming convention shared by the single-file and zip flows:
- *   "{student name}_{last 6 chars of ID}.txt"  e.g. "Akash_A10210.txt"
+ *   "{student name}_{last 6 chars of ID}.pdf"  e.g. "Akash_A10210.pdf"
  * The ID is the student's own institutional ID (regNo) when they entered one,
  * otherwise the server-minted unique UID ("S-7F3K2Q"). The last-6 fragment
  * keeps same-named students apart (two "Akash Singh"s with different roll
  * numbers get different files); for server-minted UIDs it is exactly the
  * unique random part (the "S-" prefix is constant). A residual collision —
  * identical names AND identical last-6 — is impossible inside a zip because
- * the archive builder appends -2, -3, … to duplicates. ".txt" is used
- * because submission code is stored as plain text and no language detection
- * is attempted.
+ * the archive builder appends -2, -3, … to duplicates.
+ *
+ * FILES ARE SERVER-GENERATED PDFs: this module only names and downloads
+ * them. The document is generated from the authoritative stored submission
+ * after server-side authorization (one-time ticket + authenticated route +
+ * ownership re-check inside the generator). A downloaded PDF is a readable
+ * representation — not the source of truth, and not cryptographically
+ * protected against editing; the database record always wins.
  */
 
 /**
@@ -31,7 +36,7 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
- * "{name}_{last-6-of-ID}.txt" — the canonical per-student filename. `regNo`
+ * "{name}_{last-6-of-ID}.pdf" — the canonical per-student filename. `regNo`
  * (the student's own institutional ID) wins when present; `studentUid` is
  * the always-present fallback. IDs shorter than 6 chars are used whole.
  */
@@ -43,14 +48,13 @@ export function submissionFileName(
   const base = sanitizeFilename(studentName) || "student";
   const fullId = sanitizeFilename(regNo || studentUid) || studentUid;
   const id = fullId.slice(-6) || fullId;
-  return `${base}_${id}.txt`;
+  return `${base}_${id}.pdf`;
 }
 
 /**
  * Build a safe default zip name from a room name:
- * "Intro to Algorithms — Midterm!" → "Intro-to-Algorithms--Midterm.txt"… no:
- * em-dashes are stripped by the sanitizer; result e.g. "Intro-to-Algorithms--Midterm"
- * (the sanitizer collapses runs, so em-dash becomes a single hyphen).
+ * "Intro to Algorithms — Midterm!" → "Intro-to-Algorithms--Midterm"
+ * (the sanitizer collapses runs, so an em-dash becomes a single hyphen).
  */
 export function defaultZipName(roomName: string): string {
   const base = sanitizeFilename(roomName) || "submissions";

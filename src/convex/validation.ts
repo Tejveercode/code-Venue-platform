@@ -6,6 +6,7 @@ import {
   MAX_EXAMINER_NAME,
   MAX_SUBMISSION_CODE,
   MAX_CLIENT_ID,
+  MAX_BROWSER_ID,
   MIN_DURATION_MINUTES,
   MAX_DURATION_MINUTES,
   MIN_ENROLLED_LIMIT,
@@ -13,6 +14,7 @@ import {
   ROOM_CODE_PATTERN,
   STUDENT_ID_PATTERN,
   MAX_VIOLATION_LIMIT,
+  MAX_PRIVACY_MESSAGE,
 } from "./limits";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +101,20 @@ export function validateClientId(raw: string): string {
   return raw;
 }
 
+/**
+ * Opaque browser-session id (non-secret, never a permission). It exists so
+ * the SERVER can tell whether a re-join describes the same attempt; anything
+ * longer than the cap or empty is simply treated as absent rather than
+ * rejected — the join path must keep working for browsers without storage.
+ */
+export function validateBrowserId(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const id = raw.trim();
+  if (!id) return undefined;
+  if (id.length > MAX_BROWSER_ID) return undefined;
+  return id;
+}
+
 /** Submitted code body. */
 export function validateSubmissionCode(raw: string): string {
   if (raw.length > MAX_SUBMISSION_CODE) {
@@ -142,4 +158,29 @@ export function validateExaminerName(raw: string): string {
   if (name.length > MAX_EXAMINER_NAME)
     reject(`Name must be ${MAX_EXAMINER_NAME} characters or fewer.`);
   return name;
+}
+
+/** Privacy/grievance request free text (optional). */
+export function validatePrivacyMessage(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const message = raw.trim();
+  if (!message) return undefined;
+  if (message.length > MAX_PRIVACY_MESSAGE) {
+    reject(`Please keep your message under ${MAX_PRIVACY_MESSAGE} characters.`);
+  }
+  return message;
+}
+
+/**
+ * Policy version string carried with a consent record — must match a version
+ * published in src/lib/policy.ts. Unrecognized versions are refused so a
+ * tampered client cannot fabricate consent against a policy that never
+ * existed.
+ */
+export function validatePolicyVersion(raw: string, allowed: readonly string[]): string {
+  const version = raw.trim();
+  if (!allowed.includes(version)) {
+    reject("Unknown policy version — please reload the page and try again.");
+  }
+  return version;
 }

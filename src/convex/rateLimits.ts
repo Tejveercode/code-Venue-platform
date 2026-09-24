@@ -103,6 +103,25 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 5,
   },
+
+  // --- Consent records (DPDP controls; added with the compliance pass) ------
+  // A real join/sign-up records two consent rows once. A per-subject window
+  // (per studentUid / per email) blunts record-spam without touching the
+  // legitimate one-shot flow.
+  consentPerSubject: {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+
+  // --- Privacy / grievance requests ------------------------------------------
+  // Self-service rights requests are per signed-in user; five per hour is
+  // far above any genuine need and stops request spam.
+  privacyRequestPerUser: {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
 } satisfies Record<string, RateLimitConfig>;
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, RATE_LIMITS);

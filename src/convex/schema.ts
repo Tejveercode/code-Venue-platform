@@ -65,15 +65,31 @@ const schema = defineSchema(
       .index("by_code", ["code"])
       .index("by_examiner", ["examinerId"]),
 
-    // A student identity inside one room. clientId is a client-generated
-    // UUID echoed back on every request — the durable identity.
-    // studentUid is a short public identifier (e.g. "S-7F3K2Q") shown to the
-    // student and used in download filenames so same-named students never
-    // collide — it is NOT a secret, unlike clientId.
-    // regNo is the student's own institutional ID (e.g. "24BCA10210"), typed
-    // at join. When present it takes precedence in download filenames.
+    // A student identity inside one room — ONE row per exam ATTEMPT.
+    //
+    // Identity model (security audit — attempt isolation):
+    //   clientId   = the SECRET capability token. All reads/writes resolve
+    //                through it (requireStudentByClient); it is the only
+    //                authorization path for submissions and monitoring.
+    //   browserId  = an opaque client-generated browser-session id (optional,
+    //                per-tab-flow, NOT a secret, NOT a permission). Stored so
+    //                the SERVER can answer "may this browser resume attempt X
+    //                or does its join describe a different attempt?" — the
+    //                answer must live server-side because the browser cannot
+    //                be trusted to send the right clientId. A resume is only
+    //                ever granted when BOTH the presented clientId maps to a
+    //                row in this room AND that row's name+regNo match what
+    //                the joiner typed this time (see joinRoom). A different
+    //                name or UID therefore always mints a NEW attempt and
+    //                never inherits another attempt's submission.
+    //   studentUid = short PUBLIC identifier ("S-7F3K2Q") shown to the student
+    //                and used in export filenames so same-named students never
+    //                collide — NOT a secret, unlike clientId.
+    //   regNo      = the student's own institutional ID (e.g. "24BCA10210").
+    //                Never treated as authentication — display/label only.
     students: defineTable({
       clientId: v.string(), // unique, secret session token
+      browserId: v.optional(v.string()), // opaque browser-session id (non-secret)
       studentUid: v.string(), // unique, public short identifier
       regNo: v.optional(v.string()), // student-entered institutional ID
       name: v.string(),
@@ -87,6 +103,7 @@ const schema = defineSchema(
       autoSubmittedAt: v.optional(v.number()),
     })
       .index("by_client_id", ["clientId"])
+      .index("by_browser", ["browserId"])
       .index("by_uid", ["studentUid"])
       .index("by_room", ["roomId"]),
 
@@ -123,6 +140,81 @@ const schema = defineSchema(
     })
       .index("by_room", ["roomId"])
       .index("by_student", ["studentId"]),
+
+    // ---- DPDP Act 2023 readiness (technical controls) ------------------------
+    // Every record below is written ONLY by server mutations after their own
+    // authorization checks. The legal notice text itself lives in versioned
+    // policy constants (src/lib/policy.ts) so the recorded version always
+    // matches the notice a person actually saw.
+
+    // Separately-recorded consents. One row per (subject, purpose, version):
+    // terms acceptance and privacy consent are distinct purposes and are
+    // never bundled into one checkbox. Withdrawal inserts a new row with
+    // granted:false — history is append-only so a withdrawal event can be
+    // evidenced later. Rows are keyed by email for examiners (authenticated)
+    // and by studentUid for students (their one public identifier; the
+    // secret clientId is deliberately NOT written here — data minimization).
+    consentRecords: defineTable({
+      subjectType: v.union(v.literal("examiner"), v.literal("student")),
+      subjectKey: v.string(), // email (examiner) or studentUid (student)
+      purpose: v.union(v.literal("terms"), v.literal("privacy")),
+      policyVersion: v.string(), // matches the notice shown at consent time
+      granted: v.boolean(), // false = withdrawal event
+      at: v.number(),
+    })
+      .index("by_subject", ["subjectType", "subjectKey"]),
+
+    // Data-rights requests (access / correction / erasure / grievance).
+    // Self-service: an examiner files for their own account; erasure deletes
+    // the examiner's rooms (with students, submissions, events) through the
+    // same cascade as deleteRoom, then removes the examiner row. The request
+    // row itself is retained as the record of handling (legitimate purpose:
+    // evidencing the response). Students' exam data is scoped by the examiner
+    // who owns their room — the notice directs students to their institution.
+    privacyRequests: defineTable({
+      kind: v.union(
+        v.literal("access"),
+        v.literal("correction"),
+        v.literal("erasure"),
+        v.literal("grievance"),
+      ),
+      userId: v.id("users"), // always the CALLER — no third-party filing path
+      subjectType: v.union(v.literal("examiner"), v.literal("student")),
+      subjectKey: v.string(),
+      message: v.string(), // free text, capped in limits.ts, optional
+      status: v.union(v.literal("RECEIVED"), v.literal("COMPLETED")),
+      at: v.number(),
+    }).index("by_user", ["userId"]),
+
+    // Security-event foundation (breach readiness): structured rows written
+    // by server mutations at authorization-boundary failures. Contents are
+    // deliberately minimal (event class + identifiers + time) — never tokens,
+    // never personal content. Convex function logs are the raw stream; these
+    // rows are the queryable index a breach assessment needs.
+    securityEvents: defineTable({
+      event: v.string(), // e.g. "export_ticket_denied", "examiner_erasure"
+      detail: v.optional(v.string()), // capped short string, no secrets
+      userId: v.optional(v.id("users")),
+      roomId: v.optional(v.id("rooms")),
+      studentId: v.optional(v.id("students")),
+      at: v.number(),
+    }).index("by_event", ["event"]),
+
+    // ---- Submission export (server-generated PDF) ----------------------------
+    // A ONE-TIME, 90-second ticket binding (examiner, room, student) to a
+    // SHA-256 hash of a random token. The ticket itself is never stored —
+    // only its hash — so a database snapshot cannot mint export URLs. The
+    // PDF action re-verifies ownership and submission existence at generate
+    // time; a consumed ticket is deleted before generation (single use).
+    exportTickets: defineTable({
+      ticketHash: v.string(), // SHA-256 hex of the opaque ticket
+      examinerId: v.id("examiners"), // re-verified by the generator
+      roomId: v.id("rooms"),
+      studentId: v.id("students"),
+      exp: v.number(),
+    })
+      .index("by_hash", ["ticketHash"])
+      .index("by_room", ["roomId"]),
   },
   {
     schemaValidation: false,

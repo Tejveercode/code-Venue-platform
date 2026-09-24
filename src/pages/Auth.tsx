@@ -69,6 +69,7 @@ function AuthCard() {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const setExaminerName = useMutation(api.exams.setExaminerName);
+  const recordConsent = useMutation(api.privacy.recordExaminerConsent);
   const signInNextStep = useMutation(api.exams.signInNextStep);
   const [searchParams] = useSearchParams();
   const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"));
@@ -246,6 +247,14 @@ function AuthCard() {
       // Creation-safe write: never overwrites an existing examiner's stored
       // name (server-enforced — see setExaminerName).
       await setExaminerName({ name: name.trim() });
+      // DPDP control: record the account's terms + privacy consent at the
+      // moment the account is created, with the versions shown in this
+      // flow. Failure never blocks sign-in.
+      try {
+        await recordConsent({ explicit: true });
+      } catch {
+        // ignore — the notices remain linked from every page
+      }
       clearPendingFlow();
       navigate(redirect, { replace: true });
     } catch (err) {
@@ -382,6 +391,16 @@ function AuthCard() {
                 disabled={isLoading}
               />
             </div>
+            {/* DPDP control: unbundled, plain-language acknowledgement with
+                the two policy links visible at consent time. */}
+            <p className="cv-modal-sub" style={{ marginTop: 0 }}>
+              Creating an account accepts the{" "}
+              <a href="/terms" target="_blank" rel="noreferrer" className="cv-link">Terms</a>
+              {" "}and the{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="cv-link">Privacy Notice</a>
+              {" "}(your email, name, and the exam data in your rooms — handled
+              as described there).
+            </p>
             <button
               type="submit"
               className="cv-btn cv-btn-primary cv-btn-block"

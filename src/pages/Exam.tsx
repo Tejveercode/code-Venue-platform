@@ -12,13 +12,15 @@ import { format } from "date-fns";
 import { Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import type { ViolationType } from "@/lib/violationEvents";
 import {
   getStudentIdentity,
   persistStudentUid,
   setStudentIdentity,
-} from "./StudentPortal";
+  clearStudentIdentity,
+  getBrowserId,
+} from "@/lib/studentIdentity";
 import { getErrorMessage } from "@/lib/errors";
 
 function fmtClock(ms: number): string {
@@ -105,11 +107,12 @@ function ExamLoading() {
 export default function Exam() {
   const params = useParams<{ code: string }>();
   const code = decodeURIComponent(params.code ?? "").toUpperCase();
+  const navigate = useNavigate();
 
   // Durable identity: a random token minted by the server at join time and
   // stored locally, scoped per room code. Never identify by name.
   const [clientId, setClientId] = useState<string | null>(
-    () => getStudentIdentity(code).clientId,
+    () => getStudentIdentity(code)?.clientId ?? null,
   );
 
   // Public, unique identifier shown to the student so they can identify
@@ -500,6 +503,33 @@ export default function Exam() {
     void logRejoin({ clientId }).catch(() => {});
   }, [clientId, logRejoin]);
 
+  // IDENTITY CHANGE = NEW ATTEMPT CONTEXT (client half of the attempt-
+  // isolation fix). When the active attempt token changes mid-session (the
+  // rejoin flow below), every per-attempt piece of client state is dropped
+  // BEFORE the new attempt's data arrives: the editor re-initializes blank
+  // and re-syncs from the NEW attempt's server record, the revision counter
+  // restarts from that record, and monitoring banners reset. getMySubmission
+  // is keyed by clientId, so Convex serves `undefined` while the new
+  // subscription loads — the render gate below shows the neutral loading
+  // state, never the previous attempt's answers.
+  const prevClientRef = useRef(clientId);
+  useEffect(() => {
+    if (prevClientRef.current === clientId) return;
+    prevClientRef.current = clientId;
+    setInitialized(false);
+    setCodeValue("");
+    codeRef.current = "";
+    revRef.current = 0;
+    setDirty(false);
+    setSavedAt(null);
+    setSaving(false);
+    setWarning(null);
+    setAutoSubmitted(false);
+    setSubmitError(null);
+    setLateFlag(false);
+    rejoinLoggedRef.current = false;
+  }, [clientId]);
+
   // --- Early states (all hooks above) -------------------------------------
 
   if (roomState === undefined || (mySub === undefined && clientId !== null)) {
@@ -642,6 +672,21 @@ export default function Exam() {
             <>
               <div className="cv-banner cv-banner-success">
                 Submitted — you may close this tab.
+              </div>
+              {/* Student-initiated exit (DPDP data handling): clears this
+                  browser's stored session token for the room. Server records
+                  remain until the examiner deletes the room — their
+                  legitimate retention of the exam record. */}
+              <div>
+                <button
+                  className="cv-btn cv-btn-secondary cv-btn-sm"
+                  onClick={() => {
+                    clearStudentIdentity(code);
+                    navigate("/student-portal");
+                  }}
+                >
+                  Leave room &amp; clear this browser's exam session
+                </button>
               </div>
               {lateFlag && (
                 <div className="cv-banner cv-banner-warn" role="alert">
@@ -799,20 +844,23 @@ export default function Exam() {
     setRejoining(true);
     setRejoinError(null);
     try {
-      const { regNo: savedRegNo } = getStudentIdentity(code);
+      // Fresh join request with ONLY the opaque browserId: the server
+      // resolves which attempt (if any) this browser may resume. The client
+      // deliberately does not send the old token here — the rejoin form
+      // appears precisely when the remembered session was rejected.
       const res: {
         error?: string;
         clientId?: string;
         studentUid?: string;
         regNo?: string | null;
-      } = await join({ code, name, regNo: savedRegNo ?? undefined });
+      } = await join({ code, name, browserId: getBrowserId() });
       if (res.error) {
         setRejoinError(res.error);
         return;
       }
       if (res.clientId) {
         const uid = res.regNo ?? res.studentUid ?? "";
-        setStudentIdentity(code, res.clientId, name, res.studentUid ?? "", res.regNo ?? savedRegNo ?? "");
+        setStudentIdentity(code, res.clientId, name, res.studentUid ?? "", res.regNo ?? "");
         setStudentUid(uid || null);
         setClientId(res.clientId);
       }

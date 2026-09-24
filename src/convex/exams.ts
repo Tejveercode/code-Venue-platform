@@ -6,7 +6,12 @@ import {
   query,
   QueryCtx,
   MutationCtx,
+  internalMutation,
+  internalQuery,
+  internalAction,
 } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import {
   MAX_LIST_ROOMS,
   MAX_ROOM_IDS_PER_QUERY,
@@ -25,6 +30,7 @@ import {
   validateStudentName,
   validateStudentId,
   validateClientId,
+  validateBrowserId,
   validateSubmissionCode,
   validateRevision,
   validateExaminerName,
@@ -37,7 +43,7 @@ import { enforceRateLimit } from "./rateLimits";
 // ---------------------------------------------------------------------------
 
 /** Get the examiner record for the current signed-in user (or null). */
-async function getCurrentExaminer(ctx: QueryCtx) {
+export async function getCurrentExaminer(ctx: QueryCtx) {
   const userId = await getAuthUserId(ctx);
   if (userId === null) return null;
   return await ctx.db
@@ -931,12 +937,45 @@ export const getRoomMonitoring = query({
 // ---------------------------------------------------------------------------
 
 /**
+ * Attempt-identity comparison for regNo: resume requires BOTH sides blank
+ * (the pure name-only flow) or an EXACT match. A typed regNo never matches
+ * a row without one, and a blank join never adopts a row that carries a
+ * regNo â a different student who skips the ID field cannot inherit an
+ * identified attempt.
+ */
+function sameAttemptRegNo(typed: string | undefined, stored: string | undefined): boolean {
+  if (typed === undefined) return stored === undefined;
+  return typed === stored;
+}
+
+/**
  * Public: join a room. Returns clientId + room details (incl. prompt).
  *
- * Rate limiting (see rateLimits.ts for thresholds): a per-room-code window
+ * RATE LIMITING (see rateLimits.ts for thresholds): a per-room-code window
  * blunts code brute-forcing; a per-session bucket blunts rejoin spam from a
  * single browser. Fresh joins (no session yet) are covered by the per-code
  * limit — the whole class joining at once is unaffected.
+ *
+ * ATTEMPT ISOLATION (security fix — the "different student, same browser"
+ * leak): a join request carries name + optional regNo + optionally the
+ * browser's remembered (clientId, browserId) pair from a previous join.
+ * The SERVER decides what that memory means — the browser is never trusted
+ * to pick the right attempt:
+ *
+ *   • Resume attempt X  ⇔ the presented clientId maps to a row of THIS room
+ *     AND (nothing else about the attempt was re-typed, i.e. no regNo given,
+ *     OR the regNo matches X's row) AND — when the browser reports a
+ *     browserId at all — that row was created from the same browserId.
+ *     Name is display-only: it may be edited on resume (typos), it never
+ *     selects the attempt.
+ *   • Anything else (different regNo, or the token belongs to another
+ *     room/browser) ⇒ a NEW attempt is minted. The old attempt's row,
+ *     submission, and monitoring history stay untouched — never silently
+ *     overwritten.
+ *
+ * A memory token from the WRONG room is ignored (clientId is room-scoped),
+ * so the common "I run two exams from one laptop" examiner flow cannot
+ * cross-contaminate attempts either. Capacity counts distinct attempts.
  */
 export const joinRoom = mutation({
   args: {
@@ -944,6 +983,9 @@ export const joinRoom = mutation({
     name: v.string(),
     regNo: v.optional(v.string()),
     existingClientId: v.optional(v.string()),
+    /** Opaque, non-secret browser-session id — enables server-side attempt
+     *  resolution; absent on first-ever join (or when storage is unavailable). */
+    browserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Reject malformed input FIRST — Convex transactions roll back rate-limit
@@ -954,6 +996,7 @@ export const joinRoom = mutation({
     const existingClientId = args.existingClientId
       ? validateClientId(args.existingClientId)
       : undefined;
+    const browserId = validateBrowserId(args.browserId);
 
     // Per-code window: only consumes when the mutation completes (committed
     // returns count; thrown errors roll back), which is exactly the behavior
@@ -995,50 +1038,96 @@ export const joinRoom = mutation({
       };
     }
 
-    // Capacity: enforce the room's enrolled limit server-side. Rejoining
-    // students (same clientId → same row) never count against it.
-    if (!existingClientId) {
-      const joined = await ctx.db
-        .query("students")
-        .withIndex("by_room", (q) => q.eq("roomId", room._id))
-        .collect();
-      if (joined.length >= room.enrolledLimit) {
-        return {
-          error: `"${room.name}" is full (${room.enrolledLimit} enrolled). Ask your examiner for help.`,
-        };
-      }
-    }
-
-    // Rejoin with the same clientId → same student row (refresh-safe).
-    // A clientId only maps to one student row, so joining a different room
-    // always mints a fresh one.
+    // ---- Attempt resolution (server-authoritative) -------------------------
+    // A remembered token only ever resumes its OWN attempt, and only when
+    // the attempt identity (regNo) matches what was just re-typed. When the
+    // browser reports a browserId, the token must also have been minted for
+    // THIS browser. A mismatch of any kind mints a fresh attempt — never a
+    // takeover of someone else's row (no silent overwrite of their name,
+    // submission, or monitoring history).
+    let existing: Doc<"students"> | null = null;
     if (existingClientId) {
-      const existing = await ctx.db
+      const remembered = await ctx.db
         .query("students")
         .withIndex("by_client_id", (q) =>
           q.eq("clientId", existingClientId),
         )
         .unique();
-      if (existing && existing.roomId === room._id) {
-        // Adopt a newly provided regNo on rejoin (e.g. they added it after a
-        // first quick join).
-        if (regNo && existing.regNo !== regNo) {
-          await ctx.db.patch(existing._id, { regNo });
+      const sameRoom = remembered !== null && remembered.roomId === room._id;
+      const sameAttemptIdentity = sameAttemptRegNo(regNo, remembered?.regNo);
+      const sameBrowser =
+        browserId === undefined || remembered?.browserId === browserId;
+      if (sameRoom && sameAttemptIdentity && sameBrowser) {
+        existing = remembered;
+      }
+      // else: stale or foreign memory → fall through to a brand-new attempt.
+    }
+
+    if (existing) {
+      // Refresh display fields on resume — these never affect attempt
+      // identity, so fixing a name typo or adding a missing ID is safe.
+      if (existing.name !== name || (regNo && existing.regNo !== regNo)) {
+        await ctx.db.patch(existing._id, { name, ...(regNo ? { regNo } : {}) });
+      }
+      return {
+        clientId: existing.clientId,
+        studentId: existing._id,
+        studentUid: existing.studentUid,
+        regNo: regNo ?? existing.regNo ?? null,
+        room,
+      };
+    }
+
+    // Fresh attempt — but if THIS browser already holds a row in this room
+    // under the same attempt identity (regNo), that is the same human
+    // re-joining with cleared or forgotten local memory: resume THAT row
+    // instead of stacking duplicates. Looked up by (roomId, browserId,
+    // regNo) — never by name, which is display-only and shared by real
+    // classmates. Skipped when the browser didn't report a browserId.
+    if (browserId) {
+      const candidates = await ctx.db
+        .query("students")
+        .withIndex("by_browser", (q) => q.eq("browserId", browserId))
+        .collect();
+      const prior = candidates.find(
+        (s) => s.roomId === room._id && sameAttemptRegNo(regNo, s.regNo),
+      );
+      if (prior) {
+        if (prior.name !== name || (regNo && prior.regNo !== regNo)) {
+          await ctx.db.patch(prior._id, { name, ...(regNo ? { regNo } : {}) });
         }
         return {
-          clientId: existing.clientId,
-          studentId: existing._id,
-          studentUid: existing.studentUid,
-          regNo: regNo ?? existing.regNo ?? null,
+          clientId: prior.clientId,
+          studentId: prior._id,
+          studentUid: prior.studentUid,
+          regNo: regNo ?? prior.regNo ?? null,
           room,
         };
       }
+    }
+
+    // Capacity: enforce the room's enrolled limit server-side, counting
+    // DISTINCT ATTEMPTS about to exist after this join (the matched attempt
+    // above resumed instead of consuming a seat). Reading the room's rows
+    // through the index keeps this two reads total.
+    const joined = await ctx.db
+      .query("students")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+    if (joined.length >= room.enrolledLimit) {
+      return {
+        error: `"${room.name}" is full (${room.enrolledLimit} enrolled). Ask your examiner for help.`,
+      };
     }
 
     const clientId = randomToken();
     const studentUid = await generateStudentUid(ctx);
     const studentId = await ctx.db.insert("students", {
       clientId,
+      // Record which browser minted this attempt so FUTURE joins from the
+      // same browser can be resolved server-side (never shown, never a
+      // permission by itself).
+      ...(browserId ? { browserId } : {}),
       studentUid,
       ...(regNo ? { regNo } : {}),
       name,
@@ -1388,5 +1477,401 @@ export const getExamRoomState = query({
       enrolledLimit: 0,
       violationLimit: 0,
     };
+  },
+});
+
+
+// ---------------------------------------------------------------------------
+// Submission export — server-generated PDF, server-side authorization.
+//
+// Threat model: the earlier flow built TXT files client-side from query
+// data, so the download path had no server boundary of its own. The new
+// flow has TWO server boundaries:
+//   1. requestSubmissionExportTickets (authenticated examiner mutation):
+//      owner-checks every room+student pair, hashes fresh random tokens and
+//      stores ONLY the hashes as one-time 90-second tickets. The raw ticket
+//      is never persisted, so a database snapshot cannot mint export URLs.
+//   2. exportSubmissionPdf (internal action): re-verifies ticket validity,
+//      consumes it single-use, re-checks room ownership AND submission
+//      existence from the database — the authoritative source — then builds
+//      the PDF from that record.
+// A student (or anyone without the examiner's session) can neither mint a
+// ticket nor reach the internal action. Guessing ticket URLs is infeasible:
+// 128-bit random tokens, hashed at rest, single-use, 90-second expiry.
+// The downloaded document is a REPRESENTATION, never the source of truth.
+// ---------------------------------------------------------------------------
+
+const TICKET_TTL_MS = 90_000;
+
+export const requestSubmissionExportTickets = mutation({
+  args: {
+    requests: v.array(
+      v.object({
+        roomId: v.id("rooms"),
+        studentId: v.id("students"),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const examiner = await requireExaminer(ctx);
+    // Bound the batch so one call cannot mint unbounded tickets.
+    if (args.requests.length === 0 || args.requests.length > 100) {
+      throw new ConvexError(
+        "Choose between 1 and 100 submissions to download.",
+      );
+    }
+
+    const tickets: { ticket: string; studentId: Id<"students"> }[] = [];
+    for (const req of args.requests) {
+      const room = await requireOwnedRoom(ctx, req.roomId, examiner._id);
+      if (!room) {
+        // A foreign roomId/studentId is an authorization probe — log it
+        // (structured, secret-free) and fail the whole batch.
+        await ctx.db.insert("securityEvents", {
+          event: "export_ticket_denied",
+          detail: "foreign room or student in export batch",
+          roomId: req.roomId,
+          studentId: req.studentId,
+          at: Date.now(),
+        });
+        throw new ConvexError("Some of those submissions aren't yours to download.");
+      }
+      const student = await ctx.db.get(req.studentId);
+      if (!student || student.roomId !== room._id) {
+        await ctx.db.insert("securityEvents", {
+          event: "export_ticket_denied",
+          detail: "student not in owned room",
+          roomId: req.roomId,
+          studentId: req.studentId,
+          at: Date.now(),
+        });
+        throw new ConvexError("Some of those submissions aren't yours to download.");
+      }
+      const submission = await ctx.db
+        .query("submissions")
+        .withIndex("by_student", (q) => q.eq("studentId", req.studentId))
+        .unique();
+      if (!submission) {
+        throw new ConvexError("One of those students has no submission yet.");
+      }
+
+      const ticket = randomToken();
+      tickets.push({ ticket, studentId: req.studentId });
+      await ctx.db.insert("exportTickets", {
+        ticketHash: await sha256Hex(ticket),
+        examinerId: examiner._id,
+        roomId: room._id,
+        studentId: req.studentId,
+        exp: Date.now() + TICKET_TTL_MS,
+      });
+    }
+    return { tickets };
+  },
+});
+
+/**
+ * Build one submission PDF from the authoritative stored record. Internal:
+ * reachable only from server code holding a valid ticket (via the HTTP
+ * route's auth-checked handoff). Returns null when anything fails to
+ * verify — the caller answers 404, never an internal detail.
+ */
+export const exportSubmissionPdf = internalAction({
+  args: { ticket: v.string() },
+  handler: async (ctx, args) => {
+    // Single-use consumption BEFORE any generation work.
+    const ticketHash = await sha256Hex(args.ticket);
+    const row = await ctx.runQuery(internal.exams.getExportTicketRow, {
+      ticketHash,
+    });
+    if (!row) return null;
+    await ctx.runMutation(internal.exams.consumeExportTicket, { id: row._id });
+    if (row.exp < Date.now()) return null;
+
+    const room = await ctx.runQuery(internal.exams.getExportRoom, {
+      roomId: row.roomId,
+    });
+    const student = await ctx.runQuery(internal.exams.getExportStudent, {
+      studentId: row.studentId,
+    });
+    if (!room || !student) return null;
+    // Re-verify the ticket still points at an owned pair.
+    if (room.examinerId !== row.examinerId || student.roomId !== room._id) {
+      return null;
+    }
+    const submission = await ctx.runQuery(internal.exams.getExportSubmission, {
+      studentId: row.studentId,
+    });
+    if (!submission) return null;
+
+    // Integrity reference: lets anyone later compare the downloaded
+    // document against the live database record. It is a verification
+    // AID — the PDF itself is not cryptographically protected and can be
+    // edited by any PDF editor; the database record stays authoritative.
+    const contentHash = await sha256Hex(
+      [room.code, room.name, student.name, student.studentUid, submission.code].join(
+        "\u0000",
+      ),
+    );
+
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const mono = await pdf.embedFont(StandardFonts.Courier);
+
+    const W = 595.28;
+    const H = 841.89;
+    const M = 56;
+    const CONTENT_W = W - M * 2;
+    // Sanitize: PDF standard fonts are Latin-1 — non-representable glyphs
+    // would throw at draw time. Control characters are stripped, long
+    // values capped.
+    const sanitize = (value: string): string =>
+      value.replace(/[^\x20-\x7e\xa0-\xff]/g, "").slice(0, 300) || "(none)";
+
+    const cleanName = sanitize(room.name);
+    const cleanStudent = sanitize(student.name);
+    const cleanUid = sanitize(student.studentUid);
+    const cleanReg = student.regNo ? sanitize(student.regNo) : null;
+    const codeSize = 8;
+
+    let page = pdf.addPage([W, H]);
+    let y = 0;
+
+    // Header identity block — repeated on every page so a multi-page
+    // export is never missing its metadata.
+    const drawHeader = () => {
+      page.drawRectangle({
+        x: 0,
+        y: H - 112,
+        width: W,
+        height: 112,
+        color: rgb(0.968, 0.953, 0.925),
+      });
+      page.drawText("CODE VENUE", {
+        x: M,
+        y: H - 44,
+        size: 16,
+        font: bold,
+        color: rgb(0.71, 0.45, 0.29),
+      });
+      page.drawText("Submission Record", {
+        x: M,
+        y: H - 62,
+        size: 9,
+        font,
+        color: rgb(0.42, 0.36, 0.31),
+      });
+      page.drawText(`Generated ${new Date().toISOString()}`, {
+        x: M,
+        y: H - 76,
+        size: 8,
+        font,
+        color: rgb(0.42, 0.36, 0.31),
+      });
+      page.drawText(`Submission ID: ${submission._id}`, {
+        x: M,
+        y: H - 90,
+        size: 7.5,
+        font: mono,
+        color: rgb(0.42, 0.36, 0.31),
+      });
+      page.drawText(`Integrity: sha256:${contentHash.slice(0, 32)}`, {
+        x: M,
+        y: H - 102,
+        size: 7.5,
+        font: mono,
+        color: rgb(0.42, 0.36, 0.31),
+      });
+      y = H - 130;
+    };
+
+    const newPage = () => {
+      page = pdf.addPage([W, H]);
+      drawHeader();
+    };
+
+    const ensure = (needed: number) => {
+      if (y - needed < M) newPage();
+    };
+
+    const drawLabel = (label: string, value: string, useMono = false) => {
+      ensure(16);
+      page.drawText(label, {
+        x: M,
+        y,
+        size: 8,
+        font: bold,
+        color: rgb(0.55, 0.47, 0.4),
+      });
+      page.drawText(value, {
+        x: M + 96,
+        y,
+        size: 9.5,
+        font: useMono ? mono : font,
+        color: rgb(0.17, 0.14, 0.12),
+      });
+      y -= 16;
+    };
+
+    drawHeader();
+
+    drawLabel("Exam", cleanName);
+    drawLabel("Exam code", sanitize(room.code));
+    drawLabel("Student", cleanStudent);
+    drawLabel("Student UID", cleanUid, true);
+    if (cleanReg) drawLabel("Student ID", cleanReg);
+    drawLabel("Status", submission.isFinal ? "Final submission" : "Draft");
+    drawLabel(
+      "Submitted",
+      submission.submittedAt ? new Date(submission.submittedAt).toISOString() : "— (draft)",
+    );
+    drawLabel("Last saved", new Date(submission.updatedAt).toISOString());
+
+    ensure(30);
+    page.drawText("QUESTION", {
+      x: M,
+      y,
+      size: 8,
+      font: bold,
+      color: rgb(0.55, 0.47, 0.4),
+    });
+    y -= 16;
+    for (const line of wrapText(sanitize(room.prompt).replace(/\t/g, "    "), 9, CONTENT_W, font)) {
+      ensure(14);
+      page.drawText(line, { x: M, y, size: 9, font, color: rgb(0.17, 0.14, 0.12) });
+      y -= 13;
+    }
+    y -= 8;
+
+    ensure(30);
+    page.drawText("SUBMITTED CODE", {
+      x: M,
+      y,
+      size: 8,
+      font: bold,
+      color: rgb(0.55, 0.47, 0.4),
+    });
+    y -= 16;
+    const codeText = submission.code.length ? submission.code : "(empty)";
+    // Courier is monospaced → exact character math for the code box width.
+    const maxChars = Math.floor((CONTENT_W - 16) / (codeSize * 0.6));
+    for (const rawLine of codeText.split("\n")) {
+      const expanded = rawLine.replace(/\t/g, "    ");
+      if (expanded.length <= maxChars) {
+        ensure(13);
+        page.drawText(expanded, {
+          x: M + 8,
+          y,
+          size: codeSize,
+          font: mono,
+          color: rgb(0.17, 0.14, 0.12),
+        });
+        y -= 12;
+      } else {
+        for (let i = 0; i < expanded.length; i += maxChars) {
+          ensure(13);
+          page.drawText(expanded.slice(i, i + maxChars), {
+            x: M + 8,
+            y,
+            size: codeSize,
+            font: mono,
+            color: rgb(0.17, 0.14, 0.12),
+          });
+          y -= 12;
+        }
+      }
+    }
+
+    const bytes = await pdf.save();
+    // Exact-copy ArrayBuffer: the runAction boundary serializes bytes, and a
+    // pooled view could carry padding — copy to the exact length.
+    return { bytes: Uint8Array.from(bytes).buffer, contentHash };
+  },
+});
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const buf = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Word-wrap against measured widths; hard-breaks over-long words. */
+function wrapText(
+  text: string,
+  size: number,
+  maxWidth: number,
+  font: PDFFont,
+): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (font.widthOfTextAtSize(paragraph, size) <= maxWidth) {
+      lines.push(paragraph);
+      continue;
+    }
+    let current = "";
+    for (const word of paragraph.split(" ")) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        if (font.widthOfTextAtSize(word, size) > maxWidth) {
+          let piece = "";
+          for (const ch of word) {
+            if (font.widthOfTextAtSize(piece + ch, size) > maxWidth) {
+              lines.push(piece);
+              piece = ch;
+            } else {
+              piece += ch;
+            }
+          }
+          current = piece;
+        } else {
+          current = word;
+        }
+      }
+    }
+    if (current) lines.push(current);
+  }
+  return lines;
+}
+
+// Internal read helpers for the export action (actions cannot touch ctx.db).
+export const getExportTicketRow = internalQuery({
+  args: { ticketHash: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("exportTickets")
+      .withIndex("by_hash", (q) => q.eq("ticketHash", args.ticketHash))
+      .unique();
+  },
+});
+
+export const consumeExportTicket = internalMutation({
+  args: { id: v.id("exportTickets") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const getExportRoom = internalQuery({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => await ctx.db.get(args.roomId),
+});
+
+export const getExportStudent = internalQuery({
+  args: { studentId: v.id("students") },
+  handler: async (ctx, args) => await ctx.db.get(args.studentId),
+});
+
+export const getExportSubmission = internalQuery({
+  args: { studentId: v.id("students") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("submissions")
+      .withIndex("by_student", (q) => q.eq("studentId", args.studentId))
+      .unique();
   },
 });

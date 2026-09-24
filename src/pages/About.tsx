@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
+import { VenueFooter } from "./Legal";
 import { useVenueMotion } from "@/components/venue/motion";
 
 const PILLARS = [
@@ -168,9 +169,7 @@ export default function About() {
           </motion.section>
         </main>
 
-        <footer className="cv-footer">
-          Code Venue — where live coding exams happen.
-        </footer>
+        <VenueFooter />
       </div>
     </CodeVenuePage>
   );

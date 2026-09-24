@@ -4,7 +4,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, lazy, Suspense, useEffect } from "react";
+import React, { StrictMode, lazy, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
@@ -14,6 +14,11 @@ import "./index-monitor.css";
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const About = lazy(() => import("./pages/About.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
+const PrivacyNotice = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.PrivacyNotice })));
+const TermsOfService = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.TermsOfService })));
+const CookiePolicy = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.CookiePolicy })));
+const DataRights = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.DataRights })));
+const Grievance = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.Grievance })));
 const ExaminerPortal = lazy(() => import("./pages/ExaminerPortal.tsx"));
 const ExaminerExamDetail = lazy(() => import("./pages/ExaminerExamDetail.tsx"));
 const Submissions = lazy(() => import("./pages/Submissions.tsx"));
@@ -21,18 +26,34 @@ const StudentPortal = lazy(() => import("./pages/StudentPortal.tsx"));
 const Exam = lazy(() => import("./pages/Exam.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
-// Simple loading fallback for route transitions
+// Route-change fallback: the page's own cream tone and nothing animated.
+// A pulsing gray block between routes read as a flash; this is invisible
+// unless a chunk genuinely takes long, in which case the spinner-less tone
+// still reads as "the same page, arriving".
 function RouteLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f7f3ec]">
-      <div
-        className="animate-pulse text-sm font-medium"
-        style={{ color: "#6b5d52" }}
-      >
-        Loading…
-      </div>
-    </div>
+    <div
+      className="min-h-screen"
+      style={{ background: "var(--bg-color, #f7f3ec)" }}
+      aria-hidden="true"
+    />
   );
+}
+
+/**
+ * Restore scroll on every route change. Without this, the browser keeps the
+ * previous page's scroll offset while the next page mounts, and content
+ * appears mid-page (perceived as "the page moved / fluttered"). Render-phase
+ * guard keeps StrictMode's double-mount from doing anything twice.
+ */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const [prev, setPrev] = useState(pathname);
+  if (prev !== pathname) {
+    setPrev(pathname);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+  }
+  return null;
 }
 
 /** Silent error boundary — if VlyToolbar crashes it renders nothing instead of
@@ -128,11 +149,17 @@ createRoot(document.getElementById("root")!).render(
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <RouteSyncer />
+          <ScrollToTop />
           <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/about" element={<About />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/privacy" element={<PrivacyNotice />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/cookies" element={<CookiePolicy />} />
+              <Route path="/data-rights" element={<DataRights />} />
+              <Route path="/grievance" element={<Grievance />} />
               <Route
                 path="/examiner-portal"
                 element={

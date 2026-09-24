@@ -1,64 +1,29 @@
 import { api } from "@/convex/_generated/api";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
-import { Loader2, GraduationCap } from "lucide-react";
+import { Loader2, GraduationCap, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "@/lib/errors";
+import { POLICY_VERSIONS } from "@/lib/policy";
+import {
+  getBrowserId,
+  getStudentIdentity,
+  setStudentIdentity,
+} from "@/lib/studentIdentity";
 
-export function getStudentIdentity(roomCode: string): {
-  clientId: string | null;
-  name: string | null;
-  uid: string | null;
-  regNo: string | null;
-} {
-  try {
-    const key = roomCode.trim().toUpperCase();
-    return {
-      clientId: localStorage.getItem(`cv:clientId:${key}`),
-      name: localStorage.getItem(`cv:name:${key}`),
-      uid: localStorage.getItem(`cv:uid:${key}`),
-      regNo: localStorage.getItem(`cv:regNo:${key}`),
-    };
-  } catch {
-    return { clientId: null, name: null, uid: null, regNo: null };
-  }
-}
-
-export function setStudentIdentity(
-  roomCode: string,
-  clientId: string,
-  name: string,
-  uid: string,
-  regNo: string,
-) {
-  try {
-    const key = roomCode.trim().toUpperCase();
-    localStorage.setItem(`cv:clientId:${key}`, clientId);
-    localStorage.setItem(`cv:name:${key}`, name);
-    localStorage.setItem(`cv:uid:${key}`, uid);
-    if (regNo) localStorage.setItem(`cv:regNo:${key}`, regNo);
-  } catch {
-    // storage unavailable — session-only identity
-  }
-}
-
-/** Store just the UID (the exam page calls this once the server confirms it). */
-export function persistStudentUid(roomCode: string, uid: string) {
-  try {
-    localStorage.setItem(`cv:uid:${roomCode.trim().toUpperCase()}`, uid);
-  } catch {
-    // storage unavailable — the UID still shows live on the exam screen
-  }
-}
+// Re-exports kept so the exam page's existing imports keep working.
+export { getStudentIdentity, setStudentIdentity } from "@/lib/studentIdentity";
 
 export default function StudentPortal() {
   const navigate = useNavigate();
   const lookup = useMutation(api.exams.joinRoom);
+  const recordConsent = useMutation(api.privacy.recordStudentConsent);
 
   const [name, setName] = useState("");
   const [regNo, setRegNo] = useState("");
   const [code, setCode] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
@@ -76,24 +41,51 @@ export default function StudentPortal() {
 
     setJoining(true);
     try {
-      const { clientId, regNo: savedRegNo } = getStudentIdentity(trimmedCode);
+      const remembered = getStudentIdentity(trimmedCode);
+      const typedRegNo = (regNo.trim() || undefined)?.toUpperCase();
       const result = await lookup({
         code: trimmedCode,
         name: trimmedName,
-        regNo: (regNo.trim() || savedRegNo || undefined)?.toUpperCase(),
-        existingClientId: clientId ?? undefined,
+        regNo: typedRegNo,
+        existingClientId: remembered?.clientId ?? undefined,
+        // Opaque browser-session id: the SERVER uses it to decide whether
+        // this join resumes the remembered attempt or describes a new one.
+        // It is not a permission and never identifies the person.
+        browserId: getBrowserId(),
       });
       if (typeof result.clientId !== "string") {
         setError(result.error ?? "Could not join the room.");
         return;
       }
+
+      // The server's authoritative answer is stored verbatim — including
+      // the S-UID for THIS attempt, so the exam page shows the identity the
+      // server assigned, never one remembered from another attempt.
       setStudentIdentity(
         trimmedCode,
         result.clientId,
         trimmedName,
         result.studentUid,
-        result.regNo ?? regNo.trim().toUpperCase(),
+        result.regNo ?? "",
       );
+
+      // Consent is recorded AFTER the attempt resolves (its key is this
+      // attempt's public S-UID) and only for the checkbox the person
+      // actually ticked. The server refuses to record without explicit=true.
+      if (agreed) {
+        try {
+          await recordConsent({
+            studentUid: result.studentUid,
+            explicit: true,
+            termsVersion: POLICY_VERSIONS.terms,
+            privacyVersion: POLICY_VERSIONS.privacy,
+          });
+        } catch {
+          // Never block an exam over a consent-record failure; the notice
+          // remains visible on this page either way.
+        }
+      }
+
       navigate(`/exam/${encodeURIComponent(trimmedCode)}`);
     } catch (err) {
       // ConvexError messages (rate limits, validation) are safe to show;
@@ -152,9 +144,6 @@ export default function StudentPortal() {
                   spellCheck={false}
                   disabled={joining}
                 />
-                <p className="cv-label" style={{ marginTop: 6, fontWeight: 400, fontSize: 12 }}>
-                  Your downloaded file will be named with it (name_ID.txt).
-                </p>
               </div>
               <div className="cv-field">
                 <label className="cv-label" htmlFor="student-code">
@@ -172,10 +161,42 @@ export default function StudentPortal() {
                   disabled={joining}
                 />
               </div>
+
+              {/* CONSENT (DPDP readiness): a single, unbundled, plain-language
+                  choice with an easy decline path — declining only means the
+                  join doesn't proceed. Terms acceptance and the privacy
+                  acknowledgement are listed separately inside one required
+                  acknowledgement (neither is optional for running an exam,
+                  so a fake "optional" split would be the darker pattern).
+                  Recorded server-side with the policy version shown here. */}
+              <div className="cv-consent">
+                <div className="cv-consent-row">
+                  <input
+                    id="student-consent"
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    disabled={joining}
+                  />
+                  <label htmlFor="student-consent">
+                    I accept the{" "}
+                    <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
+                    {" "}and understand how my exam data is handled in the{" "}
+                    <a href="/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>{" "}
+                    (name, ID, code and monitoring events are visible to my
+                    examiner; deleted with the exam room).
+                  </label>
+                </div>
+                <p className="cv-consent-hint">
+                  <ShieldCheck size={12} /> You'll get a unique exam ID (e.g.
+                  S-7F3K2Q) right after joining.
+                </p>
+              </div>
+
               <button
                 type="submit"
                 className="cv-btn cv-btn-primary cv-btn-block"
-                disabled={joining}
+                disabled={joining || !agreed}
               >
                 {joining ? (
                   <>
@@ -187,9 +208,7 @@ export default function StudentPortal() {
               </button>
             </form>
 
-            {/* Three scannable steps instead of a run-on paragraph: each idea
-                (no account, the ID you receive, what the ID is for) gets its
-                own numbered line so it can be skimmed in one pass. */}
+            {/* Three scannable steps instead of a run-on paragraph. */}
             <div className="cv-join-guide" aria-label="How joining works">
               <p>
                 <span className="cv-guide-num" aria-hidden="true">1</span>
@@ -201,7 +220,7 @@ export default function StudentPortal() {
               </p>
               <p>
                 <span className="cv-guide-num" aria-hidden="true">3</span>
-                <span>Your submission downloads as <strong>{`{name}_{ID}`}.txt</strong> — that ID is how your examiner finds your file.</span>
+                <span>Your examiner downloads your work as a <strong>PDF record</strong> named with your ID.</span>
               </p>
             </div>
           </div>

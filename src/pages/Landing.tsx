@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { GraduationCap, MonitorPlay, ShieldCheck, Timer, Users, Zap, ArrowRight, FileArchive, TimerReset, Wifi } from "lucide-react";
 import { CodeVenuePage, VenueHeader } from "@/components/venue/ui";
+import { VenueFooter } from "./Legal";
 import { useVenueMotion } from "@/components/venue/motion";
 
 const FEATURES = [
@@ -196,9 +197,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <footer className="cv-footer">
-          Code Venue — where live coding exams happen.
-        </footer>
+        <VenueFooter />
       </div>
     </CodeVenuePage>
   );

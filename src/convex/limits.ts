@@ -12,6 +12,7 @@ export const MAX_ROOM_NAME = 120; // room title
 export const MAX_ROOM_PROMPT = 10_000; // exam question / prompt text
 export const MAX_SUBMISSION_CODE = 64_000; // submitted code (~64KB)
 export const MAX_CLIENT_ID = 128; // student session token length
+export const MAX_BROWSER_ID = 64; // opaque browser-session id length
 export const MAX_EXAMINER_NAME = 80; // examiner display name
 export const MAX_ROOM_IDS_PER_QUERY = 50; // roomIds array length
 export const AUTOSAVE_MIN_INTERVAL_MS = 1_000; // damp redundant autosave writes
@@ -19,6 +20,8 @@ export const MIN_DURATION_MINUTES = 1;
 export const MAX_DURATION_MINUTES = 24 * 60;
 export const MIN_ENROLLED_LIMIT = 1;
 export const MAX_ENROLLED_LIMIT = 500;
+// Privacy/grievance request free text (privacy.ts).
+export const MAX_PRIVACY_MESSAGE = 2_000;
 
 // ---- Exam-session monitoring ------------------------------------------------
 // Per-room violation limit (0 = zero-tolerance: first violation flags the
