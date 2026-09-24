@@ -11,7 +11,6 @@ import {
   internalAction,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import {
   MAX_LIST_ROOMS,
   MAX_ROOM_IDS_PER_QUERY,
@@ -1482,26 +1481,52 @@ export const getExamRoomState = query({
 
 
 // ---------------------------------------------------------------------------
-// Submission export — server-generated PDF, server-side authorization.
+// Submission export — the ORIGINAL submitted file, server-authorized.
 //
-// Threat model: the earlier flow built TXT files client-side from query
-// data, so the download path had no server boundary of its own. The new
-// flow has TWO server boundaries:
+// Threat model: the download path must never trust the client. There are TWO
+// server boundaries:
 //   1. requestSubmissionExportTickets (authenticated examiner mutation):
 //      owner-checks every room+student pair, hashes fresh random tokens and
-//      stores ONLY the hashes as one-time 90-second tickets. The raw ticket
-//      is never persisted, so a database snapshot cannot mint export URLs.
-//   2. exportSubmissionPdf (internal action): re-verifies ticket validity,
+//      stores ONLY the hashes as one-time 90-second tickets, and computes the
+//      server-authoritative filename. The raw ticket is never persisted, so a
+//      database snapshot cannot mint download URLs.
+//   2. exportSubmissionFile (internal action): re-verifies ticket validity,
 //      consumes it single-use, re-checks room ownership AND submission
-//      existence from the database — the authoritative source — then builds
-//      the PDF from that record.
+//      existence from the database — the authoritative source — then returns
+//      the submission's EXACT bytes (UTF-8 of the stored code, byte-for-byte;
+//      no conversion, no reformatting) with its filename.
 // A student (or anyone without the examiner's session) can neither mint a
-// ticket nor reach the internal action. Guessing ticket URLs is infeasible:
-// 128-bit random tokens, hashed at rest, single-use, 90-second expiry.
-// The downloaded document is a REPRESENTATION, never the source of truth.
+// ticket nor reach the internal action. Guessing URLs is infeasible: 128-bit
+// random tokens, hashed at rest, single-use, 90-second expiry. The downloaded
+// file is a copy of the submission; the database record stays authoritative.
+// The submission is a single code buffer per student (the exam's one
+// question), so the original file is that buffer, named after the exam and
+// the student's own ID.
 // ---------------------------------------------------------------------------
 
 const TICKET_TTL_MS = 90_000;
+
+/** Filesystem-safe filename fragment (mirrors the client's sanitizeFilename). */
+function sanitizeForFilename(value: string): string {
+  return value
+    .replace(/[^\w\s.-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 80);
+}
+
+/** Server-authoritative download filename: "{exam}_{studentID}[-draft].txt". */
+function submissionExportFilename(
+  roomName: string,
+  studentId: string,
+  isFinal: boolean,
+): string {
+  const base = sanitizeForFilename(roomName) || "exam";
+  const id = sanitizeForFilename(studentId) || "student";
+  return `${base}_${id}${isFinal ? "" : "-draft"}.txt`;
+}
 
 export const requestSubmissionExportTickets = mutation({
   args: {
@@ -1519,9 +1544,7 @@ export const requestSubmissionExportTickets = mutation({
       throw new ConvexError(
         "Choose between 1 and 100 submissions to download.",
       );
-    }
-
-    const tickets: { ticket: string; studentId: Id<"students"> }[] = [];
+    }      const tickets: { ticket: string; studentId: Id<"students">; filename: string }[] = [];
     for (const req of args.requests) {
       const room = await requireOwnedRoom(ctx, req.roomId, examiner._id);
       if (!room) {
@@ -1556,7 +1579,16 @@ export const requestSubmissionExportTickets = mutation({
       }
 
       const ticket = randomToken();
-      tickets.push({ ticket, studentId: req.studentId });
+      // The FILENAME is computed server-side from the authoritative rows and
+      // returned with the ticket — the client can never influence what the
+      // downloaded file is called, so Content-Disposition is never attacker
+      // controlled.
+      const filename = submissionExportFilename(
+        room.name,
+        student.regNo ?? student.studentUid,
+        submission.isFinal,
+      );
+      tickets.push({ ticket, studentId: req.studentId, filename });
       await ctx.db.insert("exportTickets", {
         ticketHash: await sha256Hex(ticket),
         examinerId: examiner._id,
@@ -1570,222 +1602,64 @@ export const requestSubmissionExportTickets = mutation({
 });
 
 /**
- * Build one submission PDF from the authoritative stored record. Internal:
- * reachable only from server code holding a valid ticket (via the HTTP
- * route's auth-checked handoff). Returns null when anything fails to
- * verify — the caller answers 404, never an internal detail.
+ * Return one submission's ORIGINAL bytes. Internal: reachable only from
+ * server code holding a valid ticket (the HTTP route's auth-checked handoff,
+ * or the examiner-side ZIP flow). Returns null when anything fails to
+ * verify - the caller answers 404/400, never an internal detail.
+ *
+ * No conversion happens here: the stored code string is encoded UTF-8
+ * byte-for-byte (editor content round-trips UTF-8 exactly), so the
+ * downloaded file IS the original submission - contents, formatting, and
+ * encoding preserved.
  */
-export const exportSubmissionPdf = internalAction({
+export const exportSubmissionFile = internalAction({
   args: { ticket: v.string() },
-  handler: async (ctx, args) => {
+  // Explicit return type: Convex's function-builder infers the handler's
+  // return through the generated `internal` api, which references this very
+  // module - an inference cycle TS cannot defer (TS7022/TS7023). Annotating
+  // the return breaks the cycle without changing behavior.
+  handler: async (ctx, args): Promise<{ bytes: ArrayBuffer; filename: string } | null> => {
     // Single-use consumption BEFORE any generation work.
     const ticketHash = await sha256Hex(args.ticket);
-    const row = await ctx.runQuery(internal.exams.getExportTicketRow, {
-      ticketHash,
-    });
+    const row: Doc<"exportTickets"> | null = await ctx.runQuery(
+      internal.exams.getExportTicketRow,
+      { ticketHash },
+    );
     if (!row) return null;
     await ctx.runMutation(internal.exams.consumeExportTicket, { id: row._id });
     if (row.exp < Date.now()) return null;
 
-    const room = await ctx.runQuery(internal.exams.getExportRoom, {
-      roomId: row.roomId,
-    });
-    const student = await ctx.runQuery(internal.exams.getExportStudent, {
-      studentId: row.studentId,
-    });
+    const room: Doc<"rooms"> | null = await ctx.runQuery(
+      internal.exams.getExportRoom,
+      { roomId: row.roomId },
+    );
+    const student: Doc<"students"> | null = await ctx.runQuery(
+      internal.exams.getExportStudent,
+      { studentId: row.studentId },
+    );
     if (!room || !student) return null;
     // Re-verify the ticket still points at an owned pair.
     if (room.examinerId !== row.examinerId || student.roomId !== room._id) {
       return null;
     }
-    const submission = await ctx.runQuery(internal.exams.getExportSubmission, {
-      studentId: row.studentId,
-    });
+    const submission: Doc<"submissions"> | null = await ctx.runQuery(
+      internal.exams.getExportSubmission,
+      { studentId: row.studentId },
+    );
     if (!submission) return null;
 
-    // Integrity reference: lets anyone later compare the downloaded
-    // document against the live database record. It is a verification
-    // AID — the PDF itself is not cryptographically protected and can be
-    // edited by any PDF editor; the database record stays authoritative.
-    const contentHash = await sha256Hex(
-      [room.code, room.name, student.name, student.studentUid, submission.code].join(
-        "\u0000",
-      ),
-    );
-
-    const pdf = await PDFDocument.create();
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const mono = await pdf.embedFont(StandardFonts.Courier);
-
-    const W = 595.28;
-    const H = 841.89;
-    const M = 56;
-    const CONTENT_W = W - M * 2;
-    // Sanitize: PDF standard fonts are Latin-1 — non-representable glyphs
-    // would throw at draw time. Control characters are stripped, long
-    // values capped.
-    const sanitize = (value: string): string =>
-      value.replace(/[^\x20-\x7e\xa0-\xff]/g, "").slice(0, 300) || "(none)";
-
-    const cleanName = sanitize(room.name);
-    const cleanStudent = sanitize(student.name);
-    const cleanUid = sanitize(student.studentUid);
-    const cleanReg = student.regNo ? sanitize(student.regNo) : null;
-    const codeSize = 8;
-
-    let page = pdf.addPage([W, H]);
-    let y = 0;
-
-    // Header identity block — repeated on every page so a multi-page
-    // export is never missing its metadata.
-    const drawHeader = () => {
-      page.drawRectangle({
-        x: 0,
-        y: H - 112,
-        width: W,
-        height: 112,
-        color: rgb(0.968, 0.953, 0.925),
-      });
-      page.drawText("CODE VENUE", {
-        x: M,
-        y: H - 44,
-        size: 16,
-        font: bold,
-        color: rgb(0.71, 0.45, 0.29),
-      });
-      page.drawText("Submission Record", {
-        x: M,
-        y: H - 62,
-        size: 9,
-        font,
-        color: rgb(0.42, 0.36, 0.31),
-      });
-      page.drawText(`Generated ${new Date().toISOString()}`, {
-        x: M,
-        y: H - 76,
-        size: 8,
-        font,
-        color: rgb(0.42, 0.36, 0.31),
-      });
-      page.drawText(`Submission ID: ${submission._id}`, {
-        x: M,
-        y: H - 90,
-        size: 7.5,
-        font: mono,
-        color: rgb(0.42, 0.36, 0.31),
-      });
-      page.drawText(`Integrity: sha256:${contentHash.slice(0, 32)}`, {
-        x: M,
-        y: H - 102,
-        size: 7.5,
-        font: mono,
-        color: rgb(0.42, 0.36, 0.31),
-      });
-      y = H - 130;
-    };
-
-    const newPage = () => {
-      page = pdf.addPage([W, H]);
-      drawHeader();
-    };
-
-    const ensure = (needed: number) => {
-      if (y - needed < M) newPage();
-    };
-
-    const drawLabel = (label: string, value: string, useMono = false) => {
-      ensure(16);
-      page.drawText(label, {
-        x: M,
-        y,
-        size: 8,
-        font: bold,
-        color: rgb(0.55, 0.47, 0.4),
-      });
-      page.drawText(value, {
-        x: M + 96,
-        y,
-        size: 9.5,
-        font: useMono ? mono : font,
-        color: rgb(0.17, 0.14, 0.12),
-      });
-      y -= 16;
-    };
-
-    drawHeader();
-
-    drawLabel("Exam", cleanName);
-    drawLabel("Exam code", sanitize(room.code));
-    drawLabel("Student", cleanStudent);
-    drawLabel("Student UID", cleanUid, true);
-    if (cleanReg) drawLabel("Student ID", cleanReg);
-    drawLabel("Status", submission.isFinal ? "Final submission" : "Draft");
-    drawLabel(
-      "Submitted",
-      submission.submittedAt ? new Date(submission.submittedAt).toISOString() : "— (draft)",
-    );
-    drawLabel("Last saved", new Date(submission.updatedAt).toISOString());
-
-    ensure(30);
-    page.drawText("QUESTION", {
-      x: M,
-      y,
-      size: 8,
-      font: bold,
-      color: rgb(0.55, 0.47, 0.4),
-    });
-    y -= 16;
-    for (const line of wrapText(sanitize(room.prompt).replace(/\t/g, "    "), 9, CONTENT_W, font)) {
-      ensure(14);
-      page.drawText(line, { x: M, y, size: 9, font, color: rgb(0.17, 0.14, 0.12) });
-      y -= 13;
-    }
-    y -= 8;
-
-    ensure(30);
-    page.drawText("SUBMITTED CODE", {
-      x: M,
-      y,
-      size: 8,
-      font: bold,
-      color: rgb(0.55, 0.47, 0.4),
-    });
-    y -= 16;
-    const codeText = submission.code.length ? submission.code : "(empty)";
-    // Courier is monospaced → exact character math for the code box width.
-    const maxChars = Math.floor((CONTENT_W - 16) / (codeSize * 0.6));
-    for (const rawLine of codeText.split("\n")) {
-      const expanded = rawLine.replace(/\t/g, "    ");
-      if (expanded.length <= maxChars) {
-        ensure(13);
-        page.drawText(expanded, {
-          x: M + 8,
-          y,
-          size: codeSize,
-          font: mono,
-          color: rgb(0.17, 0.14, 0.12),
-        });
-        y -= 12;
-      } else {
-        for (let i = 0; i < expanded.length; i += maxChars) {
-          ensure(13);
-          page.drawText(expanded.slice(i, i + maxChars), {
-            x: M + 8,
-            y,
-            size: codeSize,
-            font: mono,
-            color: rgb(0.17, 0.14, 0.12),
-          });
-          y -= 12;
-        }
-      }
-    }
-
-    const bytes = await pdf.save();
+    const bytes = new TextEncoder().encode(submission.code);
     // Exact-copy ArrayBuffer: the runAction boundary serializes bytes, and a
-    // pooled view could carry padding — copy to the exact length.
-    return { bytes: Uint8Array.from(bytes).buffer, contentHash };
+    // pooled view could carry padding - copy to the exact length.
+    const payload = Uint8Array.from(bytes).buffer;
+    return {
+      bytes: payload,
+      filename: submissionExportFilename(
+        room.name,
+        student.regNo ?? student.studentUid,
+        submission.isFinal,
+      ),
+    };
   },
 });
 
@@ -1795,47 +1669,6 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-/** Word-wrap against measured widths; hard-breaks over-long words. */
-function wrapText(
-  text: string,
-  size: number,
-  maxWidth: number,
-  font: PDFFont,
-): string[] {
-  const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    if (font.widthOfTextAtSize(paragraph, size) <= maxWidth) {
-      lines.push(paragraph);
-      continue;
-    }
-    let current = "";
-    for (const word of paragraph.split(" ")) {
-      const candidate = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-        current = candidate;
-      } else {
-        if (current) lines.push(current);
-        if (font.widthOfTextAtSize(word, size) > maxWidth) {
-          let piece = "";
-          for (const ch of word) {
-            if (font.widthOfTextAtSize(piece + ch, size) > maxWidth) {
-              lines.push(piece);
-              piece = ch;
-            } else {
-              piece += ch;
-            }
-          }
-          current = piece;
-        } else {
-          current = word;
-        }
-      }
-    }
-    if (current) lines.push(current);
-  }
-  return lines;
 }
 
 // Internal read helpers for the export action (actions cannot touch ctx.db).

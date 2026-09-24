@@ -1,27 +1,54 @@
 /**
  * Submission download helpers (examiner side).
  *
- * Naming convention shared by the single-file and zip flows:
- *   "{student name}_{last 6 chars of ID}.pdf"  e.g. "Akash_A10210.pdf"
- * The ID is the student's own institutional ID (regNo) when they entered one,
- * otherwise the server-minted unique UID ("S-7F3K2Q"). The last-6 fragment
- * keeps same-named students apart (two "Akash Singh"s with different roll
- * numbers get different files); for server-minted UIDs it is exactly the
- * unique random part (the "S-" prefix is constant). A residual collision —
- * identical names AND identical last-6 — is impossible inside a zip because
- * the archive builder appends -2, -3, … to duplicates.
- *
- * FILES ARE SERVER-GENERATED PDFs: this module only names and downloads
- * them. The document is generated from the authoritative stored submission
- * after server-side authorization (one-time ticket + authenticated route +
- * ownership re-check inside the generator). A downloaded PDF is a readable
- * representation — not the source of truth, and not cryptographically
- * protected against editing; the database record always wins.
+ * DOWNLOAD SECURITY MODEL: documents are fetched from the server (the Convex
+ * deployment's HTTP router, NOT this app's origin — see exportUrl below).
+ * The examiner's client requests short-lived, single-use export tickets from
+ * a server mutation (which owner-checks every room+student pair and computes
+ * the authoritative filename), then downloads from /export/submission with
+ * the examiner's Convex Auth JWT in an Authorization header. The route
+ * re-authenticates the session, the ticket is consumed single-use, and the
+ * internal action re-verifies ownership before returning the submission's
+ * ORIGINAL bytes — contents, formatting, and encoding preserved, no
+ * conversion. A student can neither mint a ticket nor reach the route.
  */
 
 /**
+ * Absolute URL base for Convex HTTP routes.
+ *
+ * ROOT-CAUSE NOTE (the historical 404): the download route lives on the
+ * CONVEX deployment's *.convex.site host. A relative path such as
+ * "/export/submission" resolves against the APP's origin, where only the
+ * SPA exists — the server answered with index.html and the router rendered
+ * the NotFound page. Building the absolute URL from VITE_CONVEX_URL (the
+ * https://<deployment>.convex.cloud backend, converted to .convex.site)
+ * points the request at the route that actually exists.
+ */
+export function convexHttpBase(): string {
+  const raw = import.meta.env.VITE_CONVEX_URL ?? "";
+  if (!raw) return "";
+  return raw.replace(/\.convex\.cloud/, ".convex.site").replace(/\/+$/, "");
+}
+
+/**
+ * Full URL + auth headers for one export download. `token` is the examiner's
+ * Convex Auth JWT (useAuthToken) — the route rejects requests without it,
+ * so a plain navigation could never download anything.
+ */
+export function exportUrl(
+  ticket: string,
+  token: string | null,
+): { url: string; init: RequestInit } {
+  const url = `${convexHttpBase()}/export/submission?ticket=${encodeURIComponent(ticket)}`;
+  return {
+    url,
+    init: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
+  };
+}
+
+/**
  * Turn a free-text name into a filesystem-safe filename fragment:
- * - trim, lowercase not applied (names are user-facing)
+ * - trim (names stay user-facing; no case folding)
  * - remove path/OS-reserved characters, collapse whitespace to hyphens
  * - strip leading/trailing separators and control chars
  */
@@ -36,24 +63,24 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
- * "{name}_{last-6-of-ID}.pdf" — the canonical per-student filename. `regNo`
- * (the student's own institutional ID) wins when present; `studentUid` is
- * the always-present fallback. IDs shorter than 6 chars are used whole.
+ * ZIP folder per student: "{ID}-{Name}" e.g. "24BCA10222-Tejveer-Singh".
+ * The student's own institutional ID (regNo) wins when present, else the
+ * server-minted unique UID — so same-named students never collide and IDs
+ * sort naturally. The per-file name inside comes from the server.
  */
-export function submissionFileName(
+export function submissionFolderName(
   studentName: string,
   studentUid: string,
   regNo?: string | null,
 ): string {
-  const base = sanitizeFilename(studentName) || "student";
-  const fullId = sanitizeFilename(regNo || studentUid) || studentUid;
-  const id = fullId.slice(-6) || fullId;
-  return `${base}_${id}.pdf`;
+  const id = sanitizeFilename(regNo || studentUid) || studentUid;
+  const name = sanitizeFilename(studentName) || "student";
+  return `${id}-${name}`;
 }
 
 /**
  * Build a safe default zip name from a room name:
- * "Intro to Algorithms — Midterm!" → "Intro-to-Algorithms--Midterm"
+ * "Intro to Algorithms — Midterm!" → "Intro-to-Algorithms-Midterm-submissions"
  * (the sanitizer collapses runs, so an em-dash becomes a single hyphen).
  */
 export function defaultZipName(roomName: string): string {
