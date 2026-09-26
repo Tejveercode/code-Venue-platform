@@ -111,7 +111,15 @@ http.route({
     // nested queries. The ticket itself carries the real authorization: it
     // was minted by an owner-checked mutation and is consumed single-use,
     // re-verified against room ownership inside the action below.)
-    const identity = await ctx.auth.getUserIdentity();
+    // A MALFORMED token makes getUserIdentity throw (not return null) —
+    // unwrapped, that surfaced as a header-less 500 the browser had to hide.
+    // Caught: any identity failure is a clean 401 with CORS headers.
+    let identity = null;
+    try {
+      identity = await ctx.auth.getUserIdentity();
+    } catch (err) {
+      console.error("[export] token validation threw:", err);
+    }
     if (!identity) {
       console.error(
         "[export] 401: no valid session on Authorization header (ticket present, len",

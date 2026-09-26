@@ -34,14 +34,6 @@ async function sendVerificationRequest(
   { identifier: email, token }: { identifier: string; token: string },
   ctx?: unknown,
 ): Promise<void> {
-  // TEMPORARY DEV TEST HOOK (remove before the production push): when
-  // TEST_OTP_CODE is set on the deployment, sign-in accepts this fixed code
-  // and no real email is sent, so automated end-to-end tests can drive a
-  // genuine authenticated session. NEVER set TEST_OTP_CODE in production.
-  if (process.env.TEST_OTP_CODE) {
-    console.log(`[TEST MODE] OTP send suppressed for ${email} (fixed test code active)`);
-    return;
-  }
   if (ctx) {
     // Type comes from the runtime contract, not the library's declared
     // (single-param) signature — see note above.
@@ -108,12 +100,6 @@ export const emailOtp = Email({
   maxAge: 60 * 15, // 15 minutes
   // This function can be asynchronous
   async generateVerificationToken() {
-    // TEMPORARY DEV TEST HOOK (remove before the production push): when
-    // TEST_OTP_CODE is set on the deployment, the "generated" token IS the
-    // fixed test code, so verification of that code succeeds without any
-    // email being read. Pairs with the send-suppression below. NEVER set
-    // TEST_OTP_CODE in production.
-    if (process.env.TEST_OTP_CODE) return process.env.TEST_OTP_CODE;
     const random: RandomReader = {
       read(bytes: Uint8Array) {
         crypto.getRandomValues(bytes);
