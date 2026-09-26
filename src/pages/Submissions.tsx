@@ -17,6 +17,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import {
   defaultZipName,
   downloadBlob,
+  exportFailureMessage,
   exportUrl,
   loadZipLib,
   sanitizeFilename,
@@ -246,16 +247,22 @@ export function SubmissionsView({
         // returning the submission's original bytes.
         const { url, init } = exportUrl(t.ticket, authToken);
         const res = await fetch(url, init);
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         // The filename comes from the server (t.filename), computed from the
         // authoritative rows — the client never decides what the file is called.
         downloadBlob(blob, t.filename);
       } catch (err) {
+        // Rule 8 (do not hide failures): the raw error goes to the console
+        // (status, CORS block, or server cause), and the banner text is
+        // classified by the actual failure — 401 is the ONLY case that gets
+        // session language. A blocked/broken request (TypeError) can never
+        // legitimately say "refresh your session".
+        console.error("[download] individual download failed:", err);
         setExportError(
           err instanceof Error && err.message.includes("no ticket")
             ? "Could not start the download. Please try again."
-            : "Could not start the download — your session may need a refresh.",
+            : exportFailureMessage(err),
         );
       }
     },
@@ -291,6 +298,7 @@ export function SubmissionsView({
       const zip = new JSZip();
       const examFolder = safeZipBase.replace(/-submissions$/, "") || "exam";
       const used = new Set<string>();
+      let added = 0;
       let failed = 0;
       for (const r of downloadRows) {
         const t = byStudent.get(r.studentId);
@@ -308,13 +316,23 @@ export function SubmissionsView({
         try {
           const { url, init } = exportUrl(t.ticket, authToken);
           const res = await fetch(url, init);
-          if (!res.ok) throw new Error(String(res.status));
-          zip.file(`${folder}/${fname}`, await res.arrayBuffer());
-        } catch {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const bytes = await res.arrayBuffer();
+          // Guard against a pathologically small response: the route always
+          // returns the stored code as UTF-8 bytes, so 0 bytes means the
+          // response was wrong, not that the student submitted an empty file.
+          if (bytes.byteLength === 0) throw new Error("HTTP 0 bytes");
+          zip.file(`${folder}/${fname}`, bytes);
+          added += 1;
+        } catch (err) {
+          console.error(`[download] ZIP file failed: ${r.name} (${fname})`, err);
           failed += 1;
         }
       }
-      if (used.size === 0) {
+      // The empty-archive guard must count files ACTUALLY ADDED, not paths
+      // reserved — this check previously passed when every fetch failed,
+      // producing a valid-looking ZIP with zero student files (prod bug #2).
+      if (added === 0) {
         throw new Error("no files generated");
       }
       const blob = await zip.generateAsync({
@@ -325,13 +343,13 @@ export function SubmissionsView({
       setZipOpen(false);
       if (failed > 0) {
         setExportError(
-          `${used.size} of ${downloadRows.length} submission files were included — ${failed} could not be downloaded. Reopen the modal to retry.`,
+          `${added} of ${downloadRows.length} submission files were included — ${failed} could not be downloaded. Reopen the modal to retry.`,
         );
       }
-    } catch {
-      setExportError(
-        "Could not build the archive. Your session may need a refresh — try again.",
-      );
+    } catch (err) {
+      // Honest failure reporting (rule 8): log the real cause, then classify.
+      console.error("[download] ZIP build failed:", err);
+      setExportError(exportFailureMessage(err));
     } finally {
       setZipping(false);
     }

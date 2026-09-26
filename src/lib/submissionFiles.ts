@@ -104,6 +104,33 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/**
+ * Classify a download failure into a clean user-facing message WITHOUT
+ * hiding the cause: the caller logs the raw error to the console first, so
+ * development always sees the real status/exception. Only an actual 401
+ * from the server produces "session" language (per audit rule 8) — a
+ * browser-blocked request (TypeError from CORS preflight rejection or a
+ * dead network) never reaches the server and must not be blamed on the
+ * session.
+ */
+export function exportFailureMessage(err: unknown): string {
+  if (err instanceof TypeError) {
+    // fetch() throws TypeError when the browser blocks the request itself
+    // (failed CORS preflight, network outage) — the server never saw it.
+    return "The download was blocked before it reached the server — check your connection and try again.";
+  }
+  if (err instanceof Error && err.message === "HTTP 401") {
+    return "Your session has expired — sign in again, then retry the download.";
+  }
+  if (err instanceof Error && err.message === "HTTP 404") {
+    return "This download link has expired — try again.";
+  }
+  if (err instanceof Error && /^HTTP \d+$/.test(err.message)) {
+    return `The server could not complete the download (${err.message}).`;
+  }
+  return "Could not complete the download. Please try again.";
+}
+
 /** The one import that must stay lazy — keeps JSZip (~100kB) out of the initial bundle. */
 export async function loadZipLib() {
   return await import("jszip");
