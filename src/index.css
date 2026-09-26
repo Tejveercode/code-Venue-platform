@@ -782,7 +782,9 @@ code-venue-page a,
   color: var(--accent-caramel-deep); /* icon on tint: 3.9:1 (was 2.95) */
 }
 
-[data-code-venue-page] .cv-role-card h3 {
+/* h2 now (a11y audit #1): the previous heading is the page's h1 — h3 skipped
+   a level. Styles unchanged, only the selector follows the markup. */
+[data-code-venue-page] .cv-role-card h2 {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
@@ -848,7 +850,10 @@ code-venue-page a,
   padding: 26px 24px;
 }
 
-[data-code-venue-page] .cv-feature-card h4 {
+/* h3 now (a11y audit #2): the features section opens with an h2
+   (.cv-section-title) and the page h1 is the hero — h4 skipped two levels.
+   Styles unchanged, only the selector follows the markup. */
+[data-code-venue-page] .cv-feature-card h3 {
   margin: 14px 0 8px;
   font-size: 16px;
   font-weight: 700;
@@ -1079,9 +1084,14 @@ code-venue-page a,
 }
 
 [data-code-venue-page] .cv-pill-closed {
-  background: transparent;
-  color: #5a4c40; /* pill label: 5.3:1 on cream (text-sub 4.28, fails AA) */
-  border: 1px solid rgba(60, 46, 36, 0.3); /* pill edge: 3.1:1 (was 1.1) */
+  /* Closed is exam-level STATE, not decoration (usability audit #3): the
+     old transparent ghost pill vanished next to the h1. A solid deep
+     caramel fill (same step as the Live pill's family, without the green
+     energy) gives it equal visual weight on both detail pages; white label
+     on deep caramel = 6.5:1. */
+  background: var(--accent-caramel-deep);
+  color: #fff;
+  border: 1px solid var(--accent-caramel-deep);
 }
 
 [data-code-venue-page] .cv-pill-code {
@@ -1798,7 +1808,9 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-panel {
   margin-top: 28px;
-  padding: 24px 24px 16px;
+  /* 24px bottom: the overview panel's last child is a bordered fact cell
+     (the progress group), not the open-whitespace hint row — even edges. */
+  padding: 24px;
 }
 
 [data-code-venue-page] .cv-panel-head {
@@ -1886,10 +1898,13 @@ code-venue-page a,
 
 [data-code-venue-page] .cv-detail-cell .k {
   display: block;
-  font-size: 11px;
+  /* Sentence case, not uppercase (usability audit #1): labels like "Final
+     submissions" are full phrases — all-caps runs of 17+ chars read slower
+     and the tight 0.08em tracking made multi-word labels feel cramped.
+     12px/600/charcoal keeps the label:value hierarchy without shouting. */
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-sub);
 }
 
@@ -1904,6 +1919,18 @@ code-venue-page a,
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Full-width progress cell (usability audit #5): the "Final submissions"
+   cell carries the shared progress bar, so it takes its own grid row —
+   progress is visually bound to the fact it describes instead of floating
+   between the stat grid and the prompt box. */
+[data-code-venue-page] .cv-detail-grid .cv-detail-cell-progress {
+  grid-column: 1 / -1;
+}
+
+[data-code-venue-page] .cv-detail-cell-progress .cv-progress {
+  margin-top: 8px;
 }
 
 [data-code-venue-page] .cv-progress-label {

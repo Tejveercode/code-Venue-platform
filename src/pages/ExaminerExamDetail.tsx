@@ -13,7 +13,7 @@ import { MonitoringPanel } from "@/components/examiner/MonitoringPanel";
 import { RoomFormModal } from "@/components/examiner/RoomFormModal";
 import { SubmissionsView } from "@/pages/Submissions";
 import { format } from "date-fns";
-import { ArrowLeft, Check, ChevronRight, Copy, Loader2, Pencil, Square, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Pencil, Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -169,7 +169,7 @@ function ExaminerExamDetailInner() {
                     <CodePill code={room.code} />
                     <span>
                       Started {format(room.startedAt, "MMM d, HH:mm")} ·{" "}
-                      {room.durationMinutes} min
+                      {room.durationMinutes} min duration
                     </span>
                   </p>
                 </div>
@@ -182,12 +182,10 @@ function ExaminerExamDetailInner() {
                       <Square size={14} /> End Exam
                     </button>
                   )}
-                  <button
-                    className="cv-btn cv-btn-primary"
-                    onClick={() => navigate(`/submissions/${room._id}`)}
-                  >
-                    View Submissions <ChevronRight size={15} />
-                  </button>
+                  {/* No "View Submissions" button here: the Submissions tab
+                      directly below leads to the same view, and two prominent
+                      paths to one action split attention (usability audits
+                      #4/#4). The tab is the single path. */}
                 </div>
               </div>
 
@@ -235,12 +233,6 @@ function ExaminerExamDetailInner() {
                       </span>
                     </div>
                     <div className="cv-detail-cell">
-                      <span className="k">Final submissions</span>
-                      <span className="v">
-                        {c.submitted} ({pct}%)
-                      </span>
-                    </div>
-                    <div className="cv-detail-cell">
                       <span className="k">Tab-switch warnings</span>
                       <span className="v">
                         {room.violationLimit
@@ -248,20 +240,27 @@ function ExaminerExamDetailInner() {
                           : "Zero-tolerance"}
                       </span>
                     </div>
-                  </div>
 
-                  <div className="cv-progress">
-                    <div className="cv-progress-label">
-                      <span>
-                        {c.submitted} of {room.enrolledLimit} submitted
-                      </span>
-                      <span>{pct}%</span>
-                    </div>
-                    <div className="cv-progress-bar">
-                      <div
-                        className="cv-progress-fill"
-                        style={{ width: `${Math.min(100, pct)}%` }}
-                      />
+                    {/* Progress lives inside the Final submissions fact —
+                        same cell, one group — so the bar can no longer float
+                        detached between the grid and the prompt (usability
+                        audit #5). Spans the full grid row via CSS. */}
+                    <div className="cv-detail-cell cv-detail-cell-progress">
+                      <span className="k">Final submissions</span>
+                      <div className="cv-progress">
+                        <div className="cv-progress-label">
+                          <span>
+                            {c.submitted} of {room.enrolledLimit} submitted
+                          </span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="cv-progress-bar">
+                          <div
+                            className="cv-progress-fill"
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 

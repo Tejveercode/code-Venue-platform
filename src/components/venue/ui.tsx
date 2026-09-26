@@ -37,6 +37,17 @@ export function CodeVenuePage({
 
 // ---------------------------------------------------------------------------
 // Header — fully transparent so the pixel canvas shows through
+//
+// a11y note (audit #3–17): axe reports "background color could not be
+// determined due to a background gradient" for header/hero text on the
+// landing page. The page paints a single flat cream (--bg-color #f7f3ec) and
+// the text colors are flat tokens that already meet AA on it (--text-main
+// 13.9:1, --text-sub 5.3:1, nav links 5.3:1+); the only layered pixels are
+// VoidFieldCanvas (position:fixed; z-index:-1, aria-hidden) and its low-alpha
+// veil, both below the text. The "gradient" is the canvas's per-pixel alpha
+// variation — a false positive, not a real contrast defect. Accepted as-is:
+// forcing an opaque panel behind the header would kill the transparent-over-
+// canvas design the header geometry is frozen against.
 // ---------------------------------------------------------------------------
 
 /** Auth-aware header actions: examiner sign-in CTA when signed out,
@@ -120,6 +131,14 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   //   row 1: .cv-logo (left) · nav (center) · .cv-auth-buttons (right)
   //   ≤860px: nav/auth collapse away; the hamburger occupies the right cell
   //   .cv-mobile-menu spans all columns on row 2 when open
+  //
+  // The left/center/right split is a deliberate layout contract, not drift
+  // (usability audit #3): logo anchored left, section links centered between
+  // the two anchors, role entry point far right — the three cells share one
+  // 44px baseline so the row reads as one aligned bar. Do NOT switch to a
+  // left-aligned nav cluster here: the geometry is frozen against a fixed
+  // box (the scroll fix) and re-flowing it risks regressing the 0.00px-shift
+  // guarantee verified across 360–2560px.
   // Mobile menu behavior — a deliberate mobile navigation system, not a
   // collapsed desktop navbar: Escape closes (and returns focus to the
   // toggle), a tap outside the header closes it, and opening moves focus
@@ -159,13 +178,28 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
   const keepFocusThroughNavigation = () => {
     if (menuOpen) toggleRef.current?.focus();
   };
+  // Section matching uses path SEGMENTS (regex), never startsWith: raw
+  // prefix matching has a 5-char collision — "/exam" matches "/examiner/…"
+  // too, which lit the Student link on every examiner exam page (usability
+  // audit #2) because "/examiner/exams/…".startsWith("/exam"). Anchoring to
+  // a segment boundary ("/exam/" or exactly "/exam") makes each link active
+  // only for its own section: /student-portal, /exam/:code for Students;
+  // /examiner/* and /submissions/* for Teachers.
+  const pathIs = (section: "about" | "teachers" | "students") => {
+    if (section === "about") return /^\/about(\/|$)/.test(path);
+    if (section === "teachers")
+      // "examiner" with an optional "-portal": covers /examiner-portal AND
+      // /examiner/exams/:id, still refusing unrelated /examiner-* paths.
+      return /^\/examiner(-portal)?(\/|$)/.test(path) || /^\/submissions(\/|$)/.test(path);
+    return /^\/student-portal(\/|$)/.test(path) || /^\/exam(\/|$)/.test(path);
+  };
   const navLinks = (
     <>
       <li>
         <Link
-          className={"cv-nav-link" + (path.startsWith("/about") ? " active" : "")}
+          className={"cv-nav-link" + (pathIs("about") ? " active" : "")}
           to="/about"
-          aria-current={path.startsWith("/about") ? "page" : undefined}
+          aria-current={pathIs("about") ? "page" : undefined}
           onClick={keepFocusThroughNavigation}
         >
           About
@@ -173,18 +207,9 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
       </li>
       <li>
         <Link
-          className={
-            "cv-nav-link" +
-            (path.startsWith("/examiner-portal") || path.startsWith("/submissions")
-              ? " active"
-              : "")
-          }
+          className={"cv-nav-link" + (pathIs("teachers") ? " active" : "")}
           to="/examiner-portal"
-          aria-current={
-            path.startsWith("/examiner-portal") || path.startsWith("/submissions")
-              ? "page"
-              : undefined
-          }
+          aria-current={pathIs("teachers") ? "page" : undefined}
           onClick={keepFocusThroughNavigation}
         >
           For Teachers
@@ -192,21 +217,12 @@ export function VenueHeader({ actions }: { actions?: ReactNode }) {
       </li>
       <li>
         <Link
-          className={
-            "cv-nav-link" +
-            (path.startsWith("/student-portal") || path.startsWith("/exam")
-              ? " active"
-              : "")
-          }
+          className={"cv-nav-link" + (pathIs("students") ? " active" : "")}
           to="/student-portal"
-          aria-current={
-            path.startsWith("/student-portal") || path.startsWith("/exam")
-              ? "page"
-              : undefined
-          }
+          aria-current={pathIs("students") ? "page" : undefined}
           onClick={keepFocusThroughNavigation}
         >
-          Student
+          For Students
         </Link>
       </li>
     </>

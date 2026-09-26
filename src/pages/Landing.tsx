@@ -110,7 +110,9 @@ export default function Landing() {
             <div className="cv-role-icon">
               <MonitorPlay size={22} />
             </div>
-            <h3>I'm an Examiner</h3>
+            {/* h2 (a11y audit #1): previous heading is the page h1 — h3
+                skipped a level. */}
+            <h2>I'm an Examiner</h2>
             <p>
               Create live exam rooms, share the code, watch submissions roll in
               and grade them in one place.
@@ -134,7 +136,7 @@ export default function Landing() {
             <div className="cv-role-icon">
               <GraduationCap size={22} />
             </div>
-            <h3>I'm a Student</h3>
+            <h2>I'm a Student</h2>
             <p>
               Got a room code from your examiner? Jump straight into the exam —
               your work autosaves as you go.
@@ -180,7 +182,9 @@ export default function Landing() {
                 <div className="cv-role-icon">
                   <f.icon size={20} />
                 </div>
-                <h4>{f.title}</h4>
+                {/* h3 (a11y audit #2): section opens with an h2 — h4 skipped
+                    two levels. */}
+                <h3>{f.title}</h3>
                 <p>{f.body}</p>
               </motion.div>
             ))}

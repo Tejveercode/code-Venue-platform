@@ -1,7 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { VIOLATION_EVENT_LABELS } from "@/lib/violationEvents";
@@ -126,6 +126,15 @@ const MonitoringRowItem = memo(
               Last {format(lastAt, "HH:mm:ss")}
             </span>
           )}
+          {/* Expand affordance (usability audit #6): the chevron marks the
+              card as a disclosure control, not a static display; it rotates
+              with aria-expanded and is decorative (aria-hidden) because the
+              button's label already carries the show/hide state. */}
+          <ChevronDown
+            size={16}
+            className="cv-mon-chevron"
+            aria-hidden="true"
+          />
         </span>
       </button>
 
@@ -245,7 +254,7 @@ export function MonitoringPanel({
     return (
       <div className="cv-monitor">
         <div className="cv-monitor-head">
-          <h4>Live Monitoring</h4>
+          <h2>Live Monitoring</h2>
           <Loader2
             size={14}
             className="animate-spin"
@@ -267,7 +276,11 @@ export function MonitoringPanel({
   return (
     <div className="cv-monitor">
       <div className="cv-monitor-head">
-        <h4>Monitoring</h4>
+        {/* h2, not h4: the page's previous heading is the h1 room title, and
+            "Monitoring" alone duplicated the active tab label — "Live
+            Monitoring" fixes both the skipped level and the redundancy
+            (usability audit #2, copy audit #3). */}
+        <h2>Live Monitoring</h2>
         <div className="cv-monitor-summary" role="status" aria-live="polite">
           {data.room.status === "LIVE" && (
             <span className="cv-monitor-live">
@@ -289,7 +302,7 @@ export function MonitoringPanel({
           )}
           <span className="cv-monitor-limit">
             {data.room.violationLimit > 0
-              ? `${data.room.violationLimit} warnings, then auto-submit`
+              ? `Auto-submit after ${data.room.violationLimit} warnings`
               : "Any violation flags the student"}
           </span>
         </div>
