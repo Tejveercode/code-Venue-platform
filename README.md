@@ -30,3 +30,17 @@ npm run lint
 
 Exam monitoring is detection, not prevention: the server tallies tab-switch/paste/copy events, students never send counts. Clipboard *content* is never sent or stored. Consent records, data-rights requests, and erasure are self-service (DPDP Act 2023 readiness). See `/privacy`, `/terms`, `/data-rights`, `/grievance` in the app.
 ....
+
+## Copyright and Usage
+
+CodeVenue is proprietary software. Copyright © 2026 Tejveer Singh. All rights reserved, subject to applicable law.
+
+This repository is kept public so that teachers, recruiters, and developers can view and evaluate the project. Public visibility does not, by itself, grant permission to copy, modify, redistribute, republish, sublicense, or sell the project's protected code or its original assets (including branding, logos, graphics, and original documentation).
+
+Permission is required for any use that is not otherwise authorized by applicable law or by an applicable license. Permissions validly granted under earlier MIT-licensed distributions of this project are not retroactively revoked by this notice; those earlier copies remain governed by the MIT License.
+
+Third-party components — open-source dependencies, UI libraries, fonts, and any other materials that are not original to this project — remain subject to their own licenses, which continue to govern those components.
+
+To request permission, contact the repository owner through the existing public GitHub profile: https://github.com/Tejveercode
+
+The full notice is in [LICENSE](./LICENSE). Third-party components and their license texts are listed in [THIRD-PARTY-NOTICES](./THIRD-PARTY-NOTICES).

@@ -1,21 +1,91 @@
-MIT License
+CodeVenue (Code Venue) — Proprietary Software
+Copyright © 2026 Tejveer Singh, subject to verification of ownership.
+All Rights Reserved.
 
-Copyright (c) 2026 Tejveer Singh
+1. PROPRIETARY NOTICE
+   This repository contains original source code, documentation, branding,
+   names, logos, graphics, and other original creative material (the
+   "Protected Materials"). The original CodeVenue material owned by the
+   copyright holder identified above is proprietary, and all rights in it are
+   reserved, subject to applicable law. No ownership claim is made over any
+   material whose provenance or ownership has not been established, nor over
+   third-party material (see Section 5).
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+2. PUBLIC VISIBILITY IS NOT PERMISSION
+   This repository is made publicly available for viewing, evaluation, and
+   reference only. Making the code or any Protected Materials publicly
+   accessible does not, by itself, grant any permission to copy, reuse, or
+   otherwise exploit them.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+3. RESTRICTIONS
+   Except where expressly permitted in writing by the copyright holder, or
+   where a restriction is prohibited by applicable law or is expressly
+   permitted by an applicable license (see Section 5), you may not, in whole
+   or in part:
+     a. copy, reproduce, duplicate, or extract the Protected Materials;
+     b. modify, adapt, translate, rearrange, or create derivative works from
+        them;
+     c. redistribute, publish, republish, broadcast, host, or make them
+        available to the public;
+     d. sublicense, license, lease, lend, or otherwise transfer them;
+     e. sell, resell, or otherwise commercialize them, including offering
+        them as a product, template, service, or commercial offering;
+     f. remove, alter, or obscure any copyright, trademark, attribution, or
+        license notice contained in them.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+4. PERMISSION REQUESTS
+   Any use beyond what is permitted by applicable law or by an applicable
+   license requires the prior written permission of the copyright holder.
+   Permission requests may be directed to the repository owner through the
+   existing public GitHub profile: https://github.com/Tejveercode
+   Informal, verbal, or implied statements do not constitute permission;
+   permission is effective only when granted in writing by the copyright
+   holder.
+
+5. THIRD-PARTY MATERIALS
+   Third-party components and materials that are not original to this
+   project — including open-source dependencies, libraries, templates,
+   fonts, and any third-party code or assets incorporated in this repository
+   — remain governed by their own respective license terms. Nothing in this
+   notice modifies, restricts, or claims ownership over such third-party
+   materials; where a third-party license grants rights to recipients, those
+   rights continue to apply to that material on the terms stated in the
+   applicable license.
+
+6. EXISTING GRANTS AND NO RETROACTIVE EFFECT
+   This notice applies to the versions of the project published from this
+   repository as of the date above. It does not revoke, limit, or
+   retroactively cancel permissions already granted to recipients of earlier
+   distributions. Permissions validly granted under previously distributed
+   MIT-licensed versions of this project are not retroactively revoked by
+   this notice and remain in force for those recipients. In particular,
+   copies of the project previously distributed under the MIT License remain
+   available to their recipients under the terms of that grant; the MIT
+   License terms continue to govern those earlier-distributed copies. Any
+   future contribution may carry its own terms as stated at the time it is
+   contributed.
+
+7. APPLICABLE LAW PRESERVED
+   This notice does not limit, and must not be read to limit, any mandatory
+   rights, exceptions, or limitations available to you under applicable law,
+   including without limitation any statutory exception, fair use, fair
+   dealing, quotation right, or other mandatory exception. Where any
+   restriction stated above is unenforceable under applicable law, that
+   restriction applies only to the maximum extent such law permits.
+
+8. NO WARRANTY
+   THE PROTECTED MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER
+   SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+   FROM, OUT OF, OR IN CONNECTION WITH THE PROTECTED MATERIALS OR THEIR USE.
+
+9. SCOPE OF THIS NOTICE
+   This notice states the copyright holder's intention to reserve all rights
+   to the fullest extent permitted by law. Nothing in this notice promises
+   that copying, modification, or reuse can be prevented in every
+   circumstance. It is not offered as a legal guarantee that every
+   restriction stated here is enforceable in every jurisdiction;
+   enforceability depends on applicable law and the facts of each case.
+   This notice does not constitute legal advice.

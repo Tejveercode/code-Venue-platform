@@ -1,0 +1,94 @@
+THIRD-PARTY NOTICES
+===================
+
+This file identifies third-party materials that are redistributed in source
+form within this repository, together with the license terms that govern
+them. The CodeVenue proprietary notice (see LICENSE) applies only to
+original CodeVenue material; it does not claim ownership of, and does not
+modify, the third-party materials listed below. Each license text is
+reproduced verbatim as published by its upstream project.
+
+
+1. shadcn/ui components
+-----------------------
+
+Location in this repository: src/components/ui/
+Upstream: https://github.com/shadcn-ui/ui  (https://ui.shadcn.com)
+License: MIT License
+
+MIT License
+Copyright (c) 2023 shadcn
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+2. "Void Field" background renderer
+-----------------------------------
+
+Location in this repository: src/components/venue/VoidFieldCanvas.tsx
+
+Description: ambient WebGL dot-matrix background. The file's fragment shader,
+vertex shader, WebGL program setup, and pointer-drift handling are derived
+from the upstream "Void Field" component by Meng To. The modifications made
+for this project are documented in that file's own header comment: the
+original purple tint (vec3(0.7, 0.3, 1.0)) is replaced with the venue
+caramel tint, the surface is alpha-composited over the page background,
+backing resolution is capped at devicePixelRatio <= 2, and reduced-motion,
+tab-visibility, debounced-resize, and WebGL context-loss handling were added.
+
+Upstream source pages:
+  https://threeui.com/backgrounds/predictive-arc/void-field
+  https://github.com/MengTo/threeui
+  https://21st.dev/@mengto/components/void-field
+
+License: MIT License
+
+MIT License
+Copyright (c) 2026 Meng To
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+3. Materials not redistributed in this repository
+-------------------------------------------------
+
+- npm dependencies declared in package.json and package-lock.json are not
+  vendored in this repository. Each remains governed by the license recorded
+  for it in those manifests (MIT, ISC, Apache-2.0, MPL-2.0, BSD-2-Clause,
+  BSD-3-Clause, and others).
+
+- The Poppins typeface is loaded at runtime from the Google Fonts service
+  (fonts.googleapis.com) and is not redistributed in this repository. It is
+  licensed under the SIL Open Font License 1.1.
