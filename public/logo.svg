@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512"
+     height="512"
+     viewBox="0 0 512 512"
+     role="img"
+     aria-label="Code Venue app icon">
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="#303030"/>
+
+  <!-- Rounded screen frame -->
+  <path d="M350 55 H140
+           A35 35 0 0 0 105 90
+           V300
+           A35 35 0 0 0 140 335
+           H372
+           A35 35 0 0 0 407 300
+           V115"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-opacity="0.35"
+        stroke-width="4"
+        stroke-linecap="round"/>
+
+  <!-- CV symbol -->
+  <g fill="none"
+     stroke="#FFFFFF"
+     stroke-width="25"
+     stroke-linecap="butt"
+     stroke-linejoin="bevel">
+
+    <!-- C -->
+    <path d="M256 110
+             A65 65 0 1 0 256 200"/>
+
+    <!-- V -->
+    <path d="M270 85 L310 225 L375 30"/>
+  </g>
+
+  <!-- CODE VENUE wordmark -->
+  <text x="256"
+        y="385"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="31"
+        font-weight="700"
+        letter-spacing="1.5"
+        fill="#FFFFFF">CODE VENUE</text>
+
+  <!-- Slogan -->
+  <text x="256"
+        y="425"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="10"
+        font-weight="500"
+        letter-spacing="2"
+        fill="#FFFFFF"
+        fill-opacity="0.8">GROW BEYOND THE SCREEN</text>
+
+</svg>
