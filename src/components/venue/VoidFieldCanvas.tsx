@@ -1,14 +1,18 @@
 /**
  * VoidFieldCanvas — Code Venue ambient background.
  *
- * Exact port of the ThreeUI "Void Field" (PredictiveArcCanvas variant
- * "void-field") raw-WebGL dot-matrix terminal renderer, from the verified
- * source bundle (canonical source sha256 affd21553ba951c0…). The authored
- * shader is preserved: fullscreen quad, barrel distortion, pointer parallax
- * drift, a 100-column dot grid with a radial breathing pulse, digital
- * scanlines, randomized row flicker, and vignette edge masking.
+ * Adapted from the MIT-licensed ThreeUI "Void Field" shader by Meng To:
+ * https://github.com/MengTo/threeui/blob/main/src/shaders/neuform-isolated/sources/void-protocol.html
+ * (component listing: https://21st.dev/@mengto/components/void-field;
+ *  upstream repository: https://github.com/MengTo/threeui)
+ * License text: see THIRD-PARTY-NOTICES at the repository root.
  *
- * Documented host adaptations only (everything else is the authored code):
+ * The upstream effect is a raw-WebGL dot-matrix terminal renderer:
+ * fullscreen quad, barrel distortion, pointer parallax drift, a 100-column
+ * dot grid with a radial breathing pulse, digital scanlines, randomized row
+ * flicker, and vignette edge masking.
+ *
+ * Adapted for CodeVenue's visual design and lifecycle:
  *  - tint: the source's vec3(0.7, 0.3, 1.0) purple becomes the venue caramel
  *    family (design-language rule: no new colors).
  *  - surface: renders with alpha over the cream page instead of opaque black;
