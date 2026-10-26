@@ -29,3 +29,4 @@ npm run lint
 ## Privacy & monitoring
 
 Exam monitoring is detection, not prevention: the server tallies tab-switch/paste/copy events, students never send counts. Clipboard *content* is never sent or stored. Consent records, data-rights requests, and erasure are self-service (DPDP Act 2023 readiness). See `/privacy`, `/terms`, `/data-rights`, `/grievance` in the app.
+....
