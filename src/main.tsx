@@ -8,10 +8,17 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 import "./index-monitor.css";
 
-// Lazy load route components for better code splitting
-const Landing = lazy(() => import("./pages/Landing.tsx"));
-const About = lazy(() => import("./pages/About.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
+// Lazy load route components for better code splitting. The loaders are named
+// so the idle prefetcher below can warm the same modules the router imports.
+const loadLanding = () => import("./pages/Landing.tsx");
+const loadAbout = () => import("./pages/About.tsx");
+const loadAuth = () => import("./pages/Auth.tsx");
+const loadStudentPortal = () => import("./pages/StudentPortal.tsx");
+const loadExam = () => import("./pages/Exam.tsx");
+
+const Landing = lazy(loadLanding);
+const About = lazy(loadAbout);
+const AuthPage = lazy(loadAuth);
 const PrivacyNotice = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.PrivacyNotice })));
 const TermsOfService = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.TermsOfService })));
 const CookiePolicy = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default: m.CookiePolicy })));
@@ -20,8 +27,8 @@ const Grievance = lazy(() => import("./pages/Legal.tsx").then((m) => ({ default:
 const ExaminerPortal = lazy(() => import("./pages/ExaminerPortal.tsx"));
 const ExaminerExamDetail = lazy(() => import("./pages/ExaminerExamDetail.tsx"));
 const Submissions = lazy(() => import("./pages/Submissions.tsx"));
-const StudentPortal = lazy(() => import("./pages/StudentPortal.tsx"));
-const Exam = lazy(() => import("./pages/Exam.tsx"));
+const StudentPortal = lazy(loadStudentPortal);
+const Exam = lazy(loadExam);
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Route-change fallback: the page's own cream tone and nothing animated.
@@ -36,6 +43,42 @@ function RouteLoading() {
       aria-hidden="true"
     />
   );
+}
+
+/**
+ * Warm the next page's chunk while the browser is idle. Without this, every
+ * route change starts with a chunk download and shows the blank fallback;
+ * with it, switching pages renders from cache. Skipped when the visitor has
+ * asked to save data or is on a very slow connection, where the extra
+ * download would cost more than it saves.
+ */
+function RoutePrefetch() {
+  useEffect(() => {
+    const conn = (
+      navigator as Navigator & {
+        connection?: { saveData?: boolean; effectiveType?: string };
+      }
+    ).connection;
+    if (conn?.saveData || /(^|-)2g$/.test(conn?.effectiveType ?? "")) return;
+
+    const warm = () => {
+      void Promise.allSettled([
+        loadLanding(),
+        loadAbout(),
+        loadAuth(),
+        loadStudentPortal(),
+        loadExam(),
+      ]);
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(warm, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+  return null;
 }
 
 /**
@@ -126,6 +169,7 @@ createRoot(document.getElementById("root")!).render(    <StrictMode>
         <BrowserRouter>
           <RouteSyncer />
           <ScrollToTop />
+          <RoutePrefetch />
           <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route path="/" element={<Landing />} />

@@ -2,11 +2,21 @@ import { vlyPlugin } from "@vly-ai/integrations";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [vlyPlugin(), react(), tailwindcss()],
+export default defineConfig(({ command }) => {
+  // The vly preview bridge is editing/preview tooling: it pulls
+  // html2canvas-pro from cdn.jsdelivr.net (~55KB, third-party) on every page
+  // load. Keep it for `vite dev`, drop it from the production bundle so
+  // visitors never wait on an external CDN.
+  const plugins: PluginOption[] =
+    command === "serve"
+      ? [vlyPlugin(), react(), tailwindcss()]
+      : [react(), tailwindcss()];
+
+  return {
+  plugins,
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -97,4 +107,5 @@ export default defineConfig({
       overlay: false,
     },
   },
+  };
 });
